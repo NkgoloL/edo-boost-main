@@ -1,0 +1,402 @@
+# EduBoost SA Functional Implementation Roadmap
+
+This roadmap converts all user-facing and platform functionalities declared in `README.md` into implementation tracks with concrete completion criteria.
+
+Strategic requirement: EduBoost must own core intelligence in-platform. Lesson generation should run on EduBoost-hosted nano open-source models (fine-tuned for CAPS and local context), not as a thin proxy to external proprietary model APIs.
+
+## How to Use This Roadmap
+
+- Mark each checkbox as work is completed and verified.
+- Do not mark an item complete without tests and docs updates.
+- Treat "Done" as: implemented, tested, observable, and documented.
+- Use the codebase as the source of truth when this roadmap and implementation reports drift.
+
+## Implementation Status Legend
+
+- `[ ]` Not started
+- `[~]` In progress
+- `[x]` Implemented and verified
+
+---
+
+## 1) Adaptive Diagnostic Engine (IRT-Based)
+
+Source: README "Key Features" and ML references.
+
+### Core Functionality
+- [x] Implement reliable IRT calibration and scoring pipeline for Grade R-7 diagnostics.
+- [x] Support item bank versioning and difficulty/discrimination metadata management.
+- [~] Deliver per-learner knowledge gap detection at concept level (not only subject level).
+- [x] Return confidence intervals and decision thresholds for level placement.
+
+### API + Product Behavior
+- [x] Expose stable diagnostic endpoints with request/response contracts.
+- [x] Persist diagnostic attempts, outcomes, and progression history.
+- [~] Provide frontend diagnostic UX flow with retry/re-entry support.
+
+### Validation
+- [x] Add unit tests for scoring logic and edge-case handling.
+- [x] Add integration tests for full diagnostic flow from API to persistence.
+- [ ] Add benchmark checks for accuracy and response-time limits.
+
+### Current Status (Apr 2026)
+- ✅ IRT 2PL model with theta estimation, SEM, Fisher information
+- ✅ Database persistence of diagnostic sessions/responses
+- ⚠️ Concept-level gap handling exists but still needs broader item-bank depth and quality checks
+- ❌ Item bank still needs 100+ calibrated items per subject/grade
+
+---
+
+## 2) AI Lesson Generation (EduBoost-Owned Nano Model Stack)
+
+Source: README "Key Features", "Current State", and POPIA section.
+
+### Core Functionality
+- [ ] Select and baseline at least one nano open-source model family suitable for local inference (e.g., <= 7B class, quantized variants).
+- [ ] Build an in-repo model lifecycle: dataset prep -> fine-tuning/instruction tuning -> evaluation -> versioned release.
+- [~] Implement deterministic lesson-generation orchestration that calls only EduBoost-hosted models by default.
+- [x] Enforce CAPS alignment through curriculum-conditioned training data, structured generation constraints, and post-generation validation.
+- [x] Include South African context adaptation controls (language/culture/context packs) in both training corpus and inference templates.
+- [x] Add an offline-capable inference mode for low-connectivity deployments.
+
+### Model Ops + Safety + Governance
+- [ ] Build a curated CAPS-aligned training corpus with provenance tracking and licensing checks.
+- [ ] Add data quality pipeline (deduplication, contamination checks, age-band tagging, language normalization).
+- [x] Add output quality guardrails (age appropriateness, factuality checks, toxicity filters, curriculum adherence checks).
+- [~] Implement model fallback policy across EduBoost-managed model versions/sizes (not external APIs).
+- [ ] Track model version, training recipe, dataset snapshot, and inference config lineage for reproducibility.
+- [ ] Define model promotion gates (dev -> staging -> production) based on objective evaluation thresholds.
+
+### Validation
+- [x] Add unit tests for orchestration, inference adapters, and lesson post-processors.
+- [x] Add integration tests for lesson generation API paths with locally served model runtime.
+- [ ] Add golden test set for expected lesson quality, CAPS mapping, and SA-context correctness.
+- [ ] Add automated eval suite (accuracy, hallucination risk, readability by grade band, response latency, cost per lesson).
+- [ ] Add regression gates to block model deployment when lesson quality drops.
+
+### Current Status (Apr 2026)
+- ✅ Full lesson generation pipeline exists
+- ✅ Guardrails and SA-context prompt shaping exist
+- ⚠️ Current routing still includes external-provider failover, so fully in-house ownership is not yet complete
+- ❌ No lesson caching
+- ❌ No real in-repo nano-model training/serving path yet
+
+---
+
+## 3) Dynamic CAPS-Aligned Study Plans
+
+Source: README "Key Features".
+
+### Core Functionality
+- [x] Generate weekly plans that blend remediation and grade-level pacing.
+- [~] Adapt schedules based on diagnostic output and learner progress.
+- [~] Support subject-level and topic-level planning constraints.
+
+### UX + API
+- [ ] Provide learner-visible study plan views with daily task states.
+- [x] Provide educator/parent-readable plan rationale ("why this next").
+- [~] Add plan refresh/recompute endpoint with audit-safe history.
+
+### Validation
+- [x] Add unit tests for core planning algorithm behavior.
+- [x] Add integration tests covering plan generation, save, fetch, and update cycles.
+- [x] Add tests for conflict, overload, and sparse-data scenarios.
+
+### Current Status (Apr 2026)
+- ✅ Study plan router and service both exist
+- ✅ Gap-ratio scheduling and week-focus generation exist
+- ✅ Rationale endpoint exists for parent/educator visibility
+- ✅ Integration tests added for plan generation, save, fetch, refresh cycles
+- ✅ Integration tests for sparse-data, overload, and conflict scenarios
+- ✅ Integration tests for diagnostic linkage
+- ⚠️ Diagnostic integration is indirect and still needs deeper linkage/history/audit hardening
+- ❌ No learner task-state UX surfaced from the frontend yet
+
+---
+
+## 4) Gamification (Grade-Banded)
+
+Source: README "Key Features".
+
+### Core Functionality
+- [x] Implement XP, streaks, and badge system for Grade R-3 mode.
+- [~] Implement discovery-style engagement mechanics for Grade 4-7 mode.
+- [x] Ensure grade-band switching logic is deterministic and test-covered.
+
+### Persistence + Product
+- [x] Persist rewards, streaks, and milestone events.
+- [ ] Add stronger anti-abuse checks and daily-cap enforcement validation.
+- [ ] Surface learner progress indicators in frontend dashboard components.
+
+### Validation
+- [x] Add unit tests for points/streak computation.
+- [x] Add integration tests for reward issuance and progression updates.
+
+### Current Status (Apr 2026)
+- ✅ Gamification service and router exist
+- ✅ XP, levels, streaks, badges, and leaderboard APIs exist
+- ✅ Unit tests exist for XP, streak, badge, and profile logic
+- ✅ Integration tests exist (19 tests covering XP, streaks, badges, leaderboard)
+- ⚠️ Grade 4-7 discovery mode still reuses the same core service patterns and needs richer mechanics
+- ❌ Frontend integration remains incomplete
+
+---
+
+## 5) Parent / Guardian Portal
+
+Source: README "Key Features", "Parent Portal direction".
+
+### Core Functionality
+- [x] Implement authenticated guardian access with learner-linking workflows.
+- [x] Provide progress summaries, diagnostic trends, and study-plan adherence views.
+- [x] Generate AI-assisted parent reports with clear, explainable language.
+
+### Controls
+- [x] Enforce backend consent checks before exposing learner data to guardians.
+- [ ] Implement role/permission model for parent, guardian, and staff visibility scopes.
+
+### Validation
+- [ ] Add integration tests for guardian login, learner linking, and report retrieval.
+- [ ] Add authorization tests for cross-tenant or unauthorized data access attempts.
+
+### Current Status (Apr 2026)
+- ✅ Parent portal router and service exist
+- ✅ Progress, diagnostics, adherence, report generation, export, deletion, and right-to-access endpoints exist
+- ✅ Parent API model cleanup and route simplification started on the implementation-hardening branch
+- ⚠️ Consent and access checks still need stronger end-to-end validation coverage
+- ❌ No frontend visualizations yet
+
+---
+
+## 6) Authentication and Identity
+
+Source: README "Known gaps still being addressed".
+
+### Core Functionality
+- [x] Implement production-safe auth flows (signup/login/session refresh/logout).
+- [x] Support secure JWT/session handling and rotation.
+- [x] Introduce pseudonymous learner IDs in all AI-facing workflows.
+
+### Validation
+- [ ] Add auth integration tests for token lifecycle and protected routes.
+- [ ] Add negative tests for invalid tokens and privilege escalation attempts.
+
+### Current Status (Apr 2026)
+- ✅ JWT-based auth for guardians
+- ✅ Learner session endpoints
+- ✅ Pseudonymous learner UUID approach
+- ✅ Email-based guardian verification
+- ✅ Basic rate limiting exists on auth endpoints
+- ❌ No MFA/2FA
+- ⚠️ Session invalidation and deletion-path guarantees still need deeper validation
+
+---
+
+## 7) POPIA-Aligned Privacy Workflows
+
+Source: README "Privacy-oriented design goals" and "POPIA Alignment".
+
+### Data Minimisation + Pseudonymisation
+- [x] Define and enforce minimum required data collection per workflow.
+- [x] Ensure AI requests never contain direct learner identifiers.
+
+### Consent
+- [x] Implement backend-enforced parental consent before learner data processing.
+- [x] Store consent artifacts (when, who, scope, revocation state).
+
+### Right to Erasure
+- [~] Implement end-to-end deletion workflow across relational, cache, and derived stores.
+- [x] Add deletion request/completion audit events and right-to-access export endpoints.
+
+### LLM Firewall + Governance
+- [x] Centralize policy checks before model inference and data egress.
+- [x] Add configurable deny/allow policies, redaction hooks, and learner-data boundary enforcement.
+
+### Validation
+- [ ] Add privacy integration tests (consent required, revoked consent, erase flow).
+- [ ] Add compliance evidence exports for audit readiness.
+
+### Current Status (Apr 2026)
+- ✅ PII scrubber (regex-based)
+- ✅ Pseudonymous learner UUIDs
+- ✅ ConsentAudit table
+- ✅ Judiciary rule enforcement (PII_01, POPIA_02, POPIA_03)
+- ✅ Deletion/export/right-to-access service paths exist
+- ⚠️ Deletion implementation still needs correctness hardening against model/schema drift
+- ❌ No verified encryption-at-rest implementation in this repository layer
+
+---
+
+## 8) Audit Trail and Eventing
+
+Source: README "Audit Trail" statements and architecture references.
+
+### Core Functionality
+- [x] Log consent, access, learning actions, and administrative changes as immutable events.
+- [x] Correlate events by actor, learner, route, and request ID.
+- [x] Prevent silent data access by requiring auditable route wrappers.
+
+### Validation
+- [x] Add tests to verify audit events are emitted on protected operations.
+- [ ] Add tamper-resistance checks for append-only or signed event records.
+
+### Current Status (Apr 2026)
+- ✅ Fourth Estate audit system exists
+- ✅ AuditEvent model exists
+- ✅ Audit query/search service and routes exist
+- ⚠️ Long-term storage and signed append-only guarantees remain incomplete
+
+---
+
+## 9) Database Lifecycle (Alembic-Driven)
+
+Source: README "Known gaps" + "Database Migrations".
+
+### Core Functionality
+- [~] Fully adopt migration-driven schema changes with no runtime schema auto-create.
+- [~] Ensure all model changes are represented in Alembic revisions.
+- [ ] Add migration rollback paths for critical schema changes.
+
+### Validation
+- [ ] Add CI checks to fail when models and migrations drift.
+- [ ] Test upgrade/downgrade in isolated test databases.
+
+### Current Status (Apr 2026)
+- ✅ Alembic migration system is set up
+- ✅ Baseline migration file contains CREATE TABLE statements
+- ✅ SQLAlchemy ORM models are defined for core entities
+- ⚠️ Repository docs previously drifted and overstated/understated this area
+- ❌ No seed data for item banks
+
+---
+
+## 10) Frontend Architecture Hardening
+
+Source: README "Known gaps still being addressed".
+
+### Core Functionality
+- [ ] Decompose `EduBoostApp.jsx` into domain-focused components and routes.
+- [ ] Remove remaining demo-era paths and dead UI code.
+- [ ] Align frontend state management with backend contracts.
+
+### Validation
+- [ ] Add component tests for critical flows (diagnostic, lesson, plan, parent view).
+- [ ] Add E2E tests for primary learner and parent journeys.
+
+---
+
+## 11) Observability and Monitoring
+
+Source: README "Monitoring" and docker stack capabilities.
+
+### Core Functionality
+- [ ] Expand metrics to cover learner journey outcomes and operational SLOs.
+- [ ] Add tracing/correlation between frontend requests, API, workers, DB operations, and model inference pipeline.
+- [ ] Add alert rules for API latency, queue backlog, error spikes, and model-serving degradation.
+
+### Validation
+- [ ] Confirm dashboards exist for product, reliability, and privacy/compliance views.
+- [ ] Add runbooks for top alerts and incident-response steps.
+
+---
+
+## 12) Background Jobs and Celery Reliability
+
+Source: README stack composition (Celery, Redis, Flower).
+
+### Core Functionality
+- [ ] Define idempotent task patterns and retry/dead-letter handling.
+- [ ] Add priority queues for learner-critical operations.
+- [ ] Instrument task success/failure and latency metrics, including fine-tune/eval/inference job stages.
+
+### Validation
+- [ ] Add integration tests for retry/backoff and poison-message behavior.
+- [ ] Add chaos tests for model-serving interruptions, worker restarts, and Redis interruptions.
+
+---
+
+## 13) In-House Model Training and Serving Platform
+
+Source: User requirement for EduBoost-owned lesson intelligence.
+
+### Core Functionality
+- [ ] Add reproducible training pipelines (data versioning, experiment tracking, model artifact registry).
+- [ ] Implement parameter-efficient fine-tuning workflow for nano models (LoRA/QLoRA or equivalent).
+- [ ] Build secure model artifact storage with signed/versioned releases.
+- [ ] Deploy internal model serving endpoint(s) with autoscaling and health checks.
+- [ ] Add model routing layer for grade/language-aware template and model selection.
+
+### Compute + Runtime Strategy
+- [ ] Define baseline deployment profiles (CPU-only, single-GPU, and hybrid worker queues).
+- [ ] Add quantized inference support and memory/latency budgets per deployment profile.
+- [ ] Add batch and streaming inference modes for lesson generation workloads.
+
+### Validation
+- [ ] Add load tests for concurrent lesson generation under classroom-scale traffic.
+- [ ] Add disaster recovery tests for model artifact restore and serving failover.
+- [ ] Add security tests for model endpoint authz, rate-limits, and abuse prevention.
+
+---
+
+## 14) CI/CD and Release Automation
+
+Source: README "Known gaps still being addressed".
+
+### Core Functionality
+- [ ] Define CI pipeline for lint, unit, integration, migration, and security checks.
+- [ ] Add artifact/version strategy and release tagging conventions.
+- [ ] Add deployment promotion workflow (dev -> staging -> production gates).
+
+### Validation
+- [ ] Require green pipeline and test thresholds before merge.
+- [ ] Add rollback and hotfix process documentation.
+
+---
+
+## 15) Contributing and Engineering Workflow Formalization
+
+Source: README "Contributing".
+
+### Core Functionality
+- [ ] Formalize branch, review, testing, and documentation standards in-repo.
+- [ ] Add PR templates tied to roadmap and risk categories.
+- [ ] Add definition-of-done checklist to enforce quality gates.
+
+---
+
+## 16) Functional Completion Gates (Cross-Cutting)
+
+Apply to each feature area before marking complete:
+
+- [ ] API contract documented and versioned.
+- [ ] Frontend behavior matches contract and handles failures gracefully.
+- [ ] Unit + integration tests exist and pass in CI.
+- [ ] Monitoring + alert coverage in place.
+- [ ] Security/privacy implications reviewed.
+- [x] README and developer docs updated to better reflect the real status of the codebase.
+
+---
+
+## Suggested Execution Phases
+
+### Phase 1: Foundation + Trust
+- [~] Auth, consent enforcement, audit events, migration discipline, CI baseline.
+
+### Phase 2: Core Learning Loop
+- [~] Diagnostic engine hardening, in-house model training baseline, lesson orchestration quality, dynamic study plans.
+
+### Phase 3: Engagement + Family Visibility
+- [~] Gamification maturity and full parent/guardian portal.
+
+### Phase 4: Production Readiness
+- [ ] Observability SLOs, model-serving resiliency hardening, deployment and incident runbooks.
+
+---
+
+## Roadmap Ownership
+
+- Product owner: [ ] Assigned
+- Technical owner: [ ] Assigned
+- Compliance owner: [ ] Assigned
+- Weekly review cadence: [ ] Established
+- Progress dashboard: [ ] Established
