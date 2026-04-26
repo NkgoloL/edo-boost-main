@@ -196,8 +196,6 @@ class ParentPortalService:
         return {"learner_id": str(learner_id), "report_date": datetime.now().isoformat(), "sections": report_sections}
 
     async def _verify_guardian_access(self, learner_id: UUID, guardian_id: UUID) -> None:
-        from fastapi import HTTPException
-
         result = await self.session.execute(
             select(ConsentAudit)
             .where(ConsentAudit.pseudonym_id == learner_id, ConsentAudit.event_type == "consent_granted")
@@ -206,7 +204,7 @@ class ParentPortalService:
         )
         consent = result.scalar_one_or_none()
         if not consent:
-            raise HTTPException(status_code=403, detail="Guardian consent required to access learner data")
+            raise ValueError("Guardian consent required to access learner data")
 
         result = await self.session.execute(
             select(ConsentAudit)
@@ -216,7 +214,7 @@ class ParentPortalService:
         )
         revoked = result.scalar_one_or_none()
         if revoked and revoked.occurred_at > consent.occurred_at:
-            raise HTTPException(status_code=403, detail="Guardian consent has been revoked")
+            raise ValueError("Guardian consent has been revoked")
 
     async def export_data(self, learner_id: UUID, guardian_id: UUID) -> dict:
         await self._verify_guardian_access(learner_id, guardian_id)
