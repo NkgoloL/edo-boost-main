@@ -63,6 +63,20 @@ async def generate_lesson_endpoint(request: LessonRequest, _db=Depends(get_db)):
 
     if not result.success:
         if result.stamp_status == "REJECTED":
+            # Emit audit event for constitutional rejection
+            from app.api.core.audit_helpers import emit_lesson_generation_event
+            async with AsyncSessionFactory() as session:
+                await emit_lesson_generation_event(
+                    session=session,
+                    learner_id=request.learner_id,
+                    lesson_id="unknown",
+                    subject_code=request.subject_code,
+                    topic=request.topic,
+                    success=False,
+                    error="Constitutional rejection",
+                )
+                await session.commit()
+            
             raise HTTPException(
                 status_code=403,
                 detail=ErrorResponse(error="Constitutional violation", code="CONSTITUTIONAL_REJECTION", details={"reason": result.error}).model_dump(),
@@ -76,6 +90,19 @@ async def generate_lesson_endpoint(request: LessonRequest, _db=Depends(get_db)):
             status_code=503,
             detail=ErrorResponse(error="Lesson generation failed", code="LESSON_GENERATION_FAILED", details={"reason": result.error}).model_dump(),
         )
+
+    # Emit audit event for successful lesson generation
+    from app.api.core.audit_helpers import emit_lesson_generation_event
+    async with AsyncSessionFactory() as session:
+        await emit_lesson_generation_event(
+            session=session,
+            learner_id=request.learner_id,
+            lesson_id=result.lesson_id or "unknown",
+            subject_code=request.subject_code,
+            topic=request.topic,
+            success=True,
+        )
+        await session.commit()
 
     return LessonGenerationResponse(
         success=True,

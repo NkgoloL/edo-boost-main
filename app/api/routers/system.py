@@ -52,6 +52,64 @@ async def system_health():
         }
 
 
+@router.get("/schema/drift")
+async def check_schema_drift():
+    """
+    Check for schema drift between ORM models and actual database schema.
+    
+    Returns:
+    - drift_detected: Boolean indicating if ORM and DB schema are misaligned
+    - missing_tables: Tables defined in ORM but not in DB
+    - extra_tables: Tables in DB but not defined in ORM
+    - migration_status: Current Alembic migration version
+    """
+    from sqlalchemy import inspect, text
+    from app.api.core.database import AsyncSessionFactory, get_sqlalchemy_metadata
+    
+    try:
+        async with AsyncSessionFactory() as session:
+            # Get all ORM-defined tables from metadata
+            from app.api.models.db_models import Base
+            orm_tables = set(Base.metadata.tables.keys())
+            
+            # Get all tables actually in the database
+            inspector = inspect(session.sync_session.get_bind())
+            db_tables = set(inspector.get_table_names())
+            
+            # Check for drift
+            missing_tables = orm_tables - db_tables  # ORM defined but not in DB
+            extra_tables = db_tables - orm_tables    # In DB but not in ORM
+            drift_detected = len(missing_tables) > 0 or len(extra_tables) > 0
+            
+            # Get current migration version
+            migration_result = await session.execute(
+                text("SELECT version_num FROM alembic_version ORDER BY version_num DESC LIMIT 1")
+            )
+            migration_row = migration_result.scalar_one_or_none()
+            current_version = migration_row if migration_row else "unknown"
+            
+            return {
+                "success": True,
+                "drift_detected": drift_detected,
+                "missing_tables": sorted(list(missing_tables)),
+                "extra_tables": sorted(list(extra_tables)),
+                "orm_table_count": len(orm_tables),
+                "db_table_count": len(db_tables),
+                "current_migration_version": current_version,
+                "recommended_action": (
+                    "Run Alembic migrations" if missing_tables 
+                    else ("Manual cleanup needed" if extra_tables 
+                    else "Schema is in sync")
+                ),
+            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "drift_detected": None,
+        }
+
+
 @router.get("/audit")
 async def audit_report(
     report_type: str = Query(default="COMPLIANCE"),

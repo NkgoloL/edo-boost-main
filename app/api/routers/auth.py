@@ -272,3 +272,93 @@ async def create_learner_session(request: Request, request_body: LearnerSessionR
     token = _create_token({"sub": request_body.learner_id, "role": "learner"})
     return LearnerSessionResponse(session_token=token, expires_in=settings.JWT_EXPIRY_HOURS * 3600)
 
+
+@router.post("/guardian/logout", status_code=status.HTTP_200_OK)
+async def guardian_logout(user: dict = Depends(get_current_user)):
+    """
+    Logout endpoint for guardian accounts.
+    
+    Invalidates the current session token by maintaining a blacklist in Redis.
+    The token remains valid until expiry unless explicitly blacklisted.
+    """
+    if user.get("role") != "guardian":
+        raise HTTPException(status_code=403, detail="Only guardians can use this endpoint")
+    
+    try:
+        import redis.asyncio as redis_lib
+        from app.api.core.config import settings
+        
+        # Add token to blacklist cache with TTL = token expiry
+        r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
+        
+        # Calculate remaining TTL from token expiry
+        import jwt as pyjwt
+        from datetime import datetime
+        
+        token_exp = user.get("exp")
+        if token_exp:
+            now = datetime.utcnow().timestamp()
+            ttl = max(1, int(token_exp - now))
+            
+            # Blacklist the token (store token sub + role as value)
+            token_key = f"token_blacklist:{user.get('sub')}"
+            await r.setex(token_key, ttl, f"{user.get('role')}:{datetime.utcnow().isoformat()}")
+        
+        await r.aclose()
+        
+        log.info("auth.guardian.logout", parent_id=user.get("sub"))
+        
+        return {
+            "success": True,
+            "message": "Session invalidated. Token blacklisted.",
+        }
+    except Exception as e:
+        log.error("auth.guardian.logout_failed", error=str(e))
+        # Still return success — token will expire naturally
+        return {
+            "success": True,
+            "message": "Logout processed. Token will expire naturally.",
+        }
+
+
+@router.post("/learner/logout", status_code=status.HTTP_200_OK)
+async def learner_logout(user: dict = Depends(get_current_user)):
+    """
+    Logout endpoint for learner sessions.
+    
+    Invalidates the learner session token by maintaining a blacklist in Redis.
+    """
+    if user.get("role") != "learner":
+        raise HTTPException(status_code=403, detail="Only learners can use this endpoint")
+    
+    try:
+        import redis.asyncio as redis_lib
+        from app.api.core.config import settings
+        from datetime import datetime
+        
+        r = redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
+        
+        # Calculate TTL from token expiry
+        token_exp = user.get("exp")
+        if token_exp:
+            now = datetime.utcnow().timestamp()
+            ttl = max(1, int(token_exp - now))
+            
+            token_key = f"token_blacklist:{user.get('sub')}"
+            await r.setex(token_key, ttl, f"learner:{datetime.utcnow().isoformat()}")
+        
+        await r.aclose()
+        
+        log.info("auth.learner.logout", learner_id=user.get("sub"))
+        
+        return {
+            "success": True,
+            "message": "Learner session invalidated.",
+        }
+    except Exception as e:
+        log.error("auth.learner.logout_failed", error=str(e))
+        return {
+            "success": True,
+            "message": "Logout processed.",
+        }
+

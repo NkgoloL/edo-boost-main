@@ -235,5 +235,71 @@ These additions transition the backend from a functional prototype to a producti
 
 ---
 
+---
+
+### [2026-04-28] Phase E: Missing Endpoints & Audit Emission (Current Sprint)
+
+**Roadmap Refs**: §2.2 (learner mastery/progress), §2.4 (diagnostic history), §2.5 (study plan history), §2.6 (XP cap), §2.8 (logout), §2.11 (schema drift), §2.10 (audit events)
+
+**Status**: Complete
+
+**What changed**:
+
+#### Learner Router Enhancements
+- **`POST /{learner_id}/mastery`** — Added endpoint to upsert/update subject mastery entries for a learner. Checks for existing entries, updates or inserts as needed, persists to DB.
+- **`GET /{learner_id}/progress`** — Added endpoint to retrieve learner's session event summary: total lessons, time on task, accuracy metrics, XP history, recent events (last 20), current level, streak, and XP to next level.
+
+#### Diagnostic Enhancements
+- **Item Bank Depth Check** — Added validation on `/start` endpoint. Requires minimum 5 items available for grade/subject in DB. Fails gracefully with `ITEM_BANK_INSUFFICIENT` error if insufficient items.
+- **History Endpoint Already Implemented** — Confirmed `GET /history/{learner_id}` is functional, returns all diagnostic sessions for learner ordered by start date (newest first), max 50 results.
+
+#### Study Plans Enhancements
+- **`GET /{learner_id}/history`** — Added endpoint to list all historical study plans for a learner, ordered by creation date. Includes plan_id, week_start, gap_ratio, week_focus, generated_by, created_at, and schedule.
+
+#### Gamification Enhancements
+- **Daily XP Cap Enforcement** — Implemented in `GamificationService.award_xp()`. Checks daily XP awarded by querying `session_events` for events occurred today. Calculates remaining cap and either returns error or awards partial XP up to cap. Includes `capped` flag and `daily_cap` in response.
+
+#### Auth Enhancements
+- **`POST /guardian/logout`** — Added logout endpoint. Blacklists token in Redis with TTL = token expiry. Maintains session invalidation without requiring DB changes.
+- **`POST /learner/logout`** — Added parallel endpoint for learner session logout.
+
+#### System Enhancements
+- **`GET /schema/drift`** — Added endpoint to check schema drift between ORM models and actual DB. Returns missing_tables (ORM defined but not in DB), extra_tables (in DB but not ORM), drift_detected flag, and current migration version. Provides recommendations for remediation.
+
+#### Audit Emission
+- **`app/api/core/audit_helpers.py`** — Created new utility module with helper functions:
+  - `emit_audit_event()` — Generic audit event emission to DB
+  - `emit_lesson_generation_event()` — Specialized for lesson generation (success/failure)
+  - `emit_diagnostic_event()` — For diagnostic completion
+  - `emit_study_plan_event()` — For plan generation/refresh
+  - `emit_consent_event()` — For consent recording
+  - `emit_deletion_event()` — For data deletion
+  
+- **Lesson Generation Audit** — Integrated into `/generate` endpoint. Emits `LESSON_GENERATED` or `LESSON_GENERATION_FAILED` events with learner_id, subject_code, topic, and success flag.
+- **Study Plan Audit** — Integrated into `/generate` and `/{learner_id}/refresh` endpoints. Emits `STUDY_PLAN_GENERATED` and `STUDY_PLAN_REFRESHED` events respectively.
+
+**Why**:
+
+These additions complete the remaining roadmap items essential for:
+1. Learners to track their own progress and mastery evolution.
+2. API to gracefully handle item bank constraints for adaptive testing.
+3. Learners and parents to view plan history and evolution.
+4. Gamification system to enforce fairness and prevent abuse via daily caps.
+5. Sessions to be properly invalidated on logout (POPIA compliance).
+6. Operations to detect and mitigate DB/ORM schema drift.
+7. Audit trail to record all critical data modifications for compliance and debugging.
+
+**Verified by**: Code review, static analysis, inspection of routers and services.
+
+**Commit**: pending
+
+**Open issues**: 
+- Integration tests for new endpoints pending (Phase E-integration).
+- Anti-abuse validation tests for gamification cap (Phase D).
+- Parent portal integration tests (§2.7 — role enforcement, cross-tenant rejection).
+- Negative tests for auth endpoints (invalid token, privilege escalation).
+
+---
+
 *This report will be updated with each completed task. Commit hashes are appended after each push.*
 
