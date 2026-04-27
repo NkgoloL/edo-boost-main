@@ -27,3 +27,9 @@ All autonomous work is tracked in the following files:
 - `audits/reports/Agentic_Execution_Report.md`
 
 When executing an Epic, the Agent must update both the Roadmap and the Report upon completion.
+
+## 5. Version Control
+All changes MUST be committed and pushed to the remote repository.
+- After completing any work (Epic, fix, feature), stage and commit changes
+- Push to remote immediately after commit
+- Use descriptive commit messages that reference the Epic or task

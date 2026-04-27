@@ -17,9 +17,18 @@ from app.api.constitutional_schema.types import (
 _fourth_estate: Optional["FourthEstate"] = None
 
 
+import structlog
+
+logger = structlog.get_logger(__name__)
+
+
 class FourthEstate:
     def __init__(
-        self, redis_url: Optional[str] = None, stream_key: str = "eduboost:audit"
+        self,
+        redis_url: Optional[str] = None,
+        stream_key: str = "eduboost:audit",
+        cb_threshold: int = 3,
+        cb_recovery_timeout: int = 30,
     ) -> None:
         self.redis_url = redis_url
         self.stream_key = stream_key
@@ -29,34 +38,79 @@ class FourthEstate:
         self._sequence = 0
         self._redis = None
 
+        # Circuit Breaker state
+        self._cb_state = "CLOSED"  # CLOSED, OPEN, HALF_OPEN
+        self._cb_failure_count = 0
+        self._cb_threshold = cb_threshold
+        self._cb_recovery_timeout = cb_recovery_timeout
+        self._cb_last_failure_time: Optional[datetime] = None
+
     def get_stats(self) -> dict:
         return {
             "total_events": self._total_events,
             "violations": self._violations,
             "buffer_size": len(self._buffer),
             "stream_key": self.stream_key,
+            "circuit_breaker_state": self._cb_state,
         }
+
+    async def _try_redis_publish(self, event: AuditEvent) -> bool:
+        if not self.redis_url:
+            return False
+
+        try:
+            import redis.asyncio as redis_lib
+
+            if self._redis is None:
+                self._redis = redis_lib.from_url(self.redis_url, decode_responses=True)
+
+            await self._redis.xadd(
+                self.stream_key,
+                {"payload": str(event.model_dump(mode="json"))},
+                maxlen=10_000,
+                approximate=True,
+            )
+            return True
+        except Exception as e:
+            logger.error("redis_publish_failed", error=str(e), event_id=event.event_id)
+            return False
 
     async def publish(self, event: AuditEvent) -> None:
         self._total_events += 1
         self._sequence += 1
         self._buffer.append(event)
-        if self.redis_url:
-            try:
-                import redis.asyncio as redis_lib
 
-                if self._redis is None:
-                    self._redis = redis_lib.from_url(
-                        self.redis_url, decode_responses=True
-                    )
-                await self._redis.xadd(
-                    self.stream_key,
-                    {"payload": str(event.model_dump(mode="json"))},
-                    maxlen=10_000,
-                    approximate=True,
-                )
-            except Exception:
-                pass
+        # Handle Circuit Breaker State Transitions
+        if self._cb_state == "OPEN":
+            if self._cb_last_failure_time and (
+                datetime.now(timezone.utc) - self._cb_last_failure_time
+            ).total_seconds() > self._cb_recovery_timeout:
+                self._cb_state = "HALF_OPEN"
+                logger.info("circuit_breaker_half_open", reason="recovery_timeout_reached")
+            else:
+                logger.warning("circuit_breaker_open_skipping_redis", event_id=event.event_id)
+                return
+
+        # Attempt Redis publish if CLOSED or HALF_OPEN
+        success = await self._try_redis_publish(event)
+
+        if success:
+            if self._cb_state == "HALF_OPEN":
+                self._cb_state = "CLOSED"
+                self._cb_failure_count = 0
+                logger.info("circuit_breaker_closed", reason="successful_half_open_probe")
+            elif self._cb_state == "CLOSED":
+                self._cb_failure_count = 0
+        else:
+            self._cb_failure_count += 1
+            self._cb_last_failure_time = datetime.now(timezone.utc)
+
+            if self._cb_state == "CLOSED" and self._cb_failure_count >= self._cb_threshold:
+                self._cb_state = "OPEN"
+                logger.error("circuit_breaker_opened", failure_count=self._cb_failure_count)
+            elif self._cb_state == "HALF_OPEN":
+                self._cb_state = "OPEN"
+                logger.error("circuit_breaker_reopened", reason="half_open_probe_failed")
 
     async def publish_action_submitted(self, action: ExecutiveAction) -> None:
         await self.publish(

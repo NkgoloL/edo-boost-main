@@ -56,7 +56,7 @@ def scrub_pii(text: str) -> str:
 
 def scrub_dict(data: dict) -> dict:
     """Recursively scrub PII from a dictionary (used before LLM calls)."""
-    serialised = json.dumps(data)
+    serialised = json.dumps(data, default=str)
     serialised = scrub_pii(serialised)
     return json.loads(serialised)
 

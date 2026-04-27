@@ -16,6 +16,7 @@ from app.api.models.api_models import (
     SubjectMasteryEntry,
     SubjectMasteryResponse,
 )
+from app.api.services.inference_gateway import scrub_dict
 
 router = APIRouter()
 
@@ -77,7 +78,7 @@ async def get_learner(learner_id: UUID, db=Depends(get_db)):
                     error="Learner not found", code="LEARNER_NOT_FOUND"
                 ).model_dump(),
             )
-        return dict(row)
+        return scrub_dict(dict(row))
 
 
 @router.patch(
@@ -338,7 +339,7 @@ async def get_learner_progress(learner_id: UUID, db=Depends(get_db)):
             xp_in_current_level = learner["total_xp"] % 100
             xp_to_next_level = 100 - xp_in_current_level
 
-            return {
+            raw_response = {
                 "success": True,
                 "learner_id": str(learner_id),
                 "current_xp": learner["total_xp"],
@@ -367,6 +368,7 @@ async def get_learner_progress(learner_id: UUID, db=Depends(get_db)):
                 },
                 "recent_events": recent_events,
             }
+            return scrub_dict(raw_response)
         except HTTPException:
             raise
         except Exception as e:

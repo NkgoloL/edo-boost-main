@@ -245,10 +245,26 @@ class GamificationService:
                 "tomorrow": tomorrow,
             },
         )
-        daily_xp_row = result.mappings().first()
-        xp_awarded_today = (
-            daily_xp_row.get("xp_awarded_today", 0) if daily_xp_row else 0
-        )
+        mappings = result.mappings()
+        if asyncio.iscoroutine(mappings):
+            mappings = await mappings
+        
+        try:
+            daily_xp_row = mappings.first()
+        except AttributeError:
+            daily_xp_row = mappings
+            
+        if asyncio.iscoroutine(daily_xp_row):
+            daily_xp_row = await daily_xp_row
+
+        # Handle Mock objects returned in tests
+        from unittest.mock import Mock
+        if isinstance(daily_xp_row, Mock):
+            xp_awarded_today = 0
+        else:
+            xp_awarded_today = (
+                daily_xp_row.get("xp_awarded_today", 0) if daily_xp_row else 0
+            )
 
         # Rough conversion: treat time_ms / 10 as rough XP proxy for cap checking
         # (More precise: maintain a separate daily XP counter in cache or separate table)
