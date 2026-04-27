@@ -16,6 +16,7 @@ from app.api.profiler import get_profiler
 from app.api.services.lesson_service import (
     LessonParams,
     build_lesson_prompts,
+    generate_lesson,
     generate_lesson_from_prompts,
     generate_parent_report,
     generate_study_plan,
@@ -48,6 +49,10 @@ class Orchestrator:
             return await self._generate_study_plan(req, t0)
         if req.operation == "GENERATE_PARENT_REPORT":
             return await self._generate_parent_report(req, t0)
+        elif req.operation == "START_DIAGNOSTIC":
+            return await self._start_diagnostic(req, t0)
+        elif req.operation == "SUBMIT_DIAGNOSTIC_RESPONSE":
+            return await self._submit_diagnostic_response(req, t0)
         return OperationResult(success=False, error=f"Unsupported operation: {req.operation}", stamp_status="REJECTED", constitutional_health=0.0, latency_ms=int((time.perf_counter() - t0) * 1000))
 
     async def _review_action(self, action_type: ActionType, req: OrchestratorRequest, t0: float) -> tuple[ExecutiveAction, Any, Any, Any, Any]:
@@ -80,13 +85,13 @@ class Orchestrator:
         if stamp.status == StampStatus.REJECTED:
             return OperationResult(success=False, error=stamp.reasoning, stamp_status=stamp.status.value, constitutional_health=0.0, stamp_id=action.action_id, ether_archetype=profile.archetype.value, latency_ms=int((time.perf_counter() - t0) * 1000))
         try:
-            lesson = await generate_lesson_from_prompts(system_prompt, user_prompt)
+            lesson, lesson_id = await generate_lesson(lp)
             await fe.publish_llm_result(action, provider="groq", success=True, latency_ms=0)
         except Exception as e:
             await fe.publish_llm_result(action, provider="groq", success=False, latency_ms=30_000)
             return OperationResult(success=False, error=str(e), stamp_status=stamp.status.value, constitutional_health=0.5, stamp_id=action.action_id, ether_archetype=profile.archetype.value, latency_ms=int((time.perf_counter() - t0) * 1000))
         health = j.get_stats()["approval_rate"]
-        return OperationResult(success=True, output=lesson.model_dump(), stamp_status=stamp.status.value, constitutional_health=float(health), stamp_id=action.action_id, ether_archetype=profile.archetype.value, latency_ms=int((time.perf_counter() - t0) * 1000))
+        return OperationResult(success=True, output=lesson.model_dump(), lesson_id=lesson_id, stamp_status=stamp.status.value, constitutional_health=float(health), stamp_id=action.action_id, ether_archetype=profile.archetype.value, latency_ms=int((time.perf_counter() - t0) * 1000))
 
     async def _run_diagnostic(self, req: OrchestratorRequest, t0: float) -> OperationResult:
         from app.api.ml.irt_engine import AssessmentSession, ITEM_BANK, SAMPLE_ITEMS, Response, SubjectCode, activate_gap_probe, build_gap_report, check_gap_trigger, select_next_item, should_stop, update_theta_mle
@@ -141,6 +146,99 @@ class Orchestrator:
             return OperationResult(success=True, output=report, stamp_status=stamp.status.value, constitutional_health=float(j.get_stats()["approval_rate"]), stamp_id=action.action_id, ether_archetype=profile.archetype.value, latency_ms=int((time.perf_counter() - t0) * 1000))
         except Exception as e:
             return OperationResult(success=False, error=str(e), stamp_status=stamp.status.value, constitutional_health=0.5, stamp_id=action.action_id, ether_archetype=profile.archetype.value, latency_ms=int((time.perf_counter() - t0) * 1000))
+
+    async def _start_diagnostic(self, req: OrchestratorRequest, t0: float) -> OperationResult:
+        from app.api.ml.irt_engine import AssessmentSession, SAMPLE_ITEMS, SubjectCode, select_next_item
+        
+        action, fe, j, _profiler, profile = await self._review_action(ActionType.START_DIAGNOSTIC, req, t0)
+        stamp = await j.review(action)
+        await fe.publish_stamp_issued(stamp, action)
+        if stamp.status == StampStatus.REJECTED:
+            return OperationResult(success=False, error=stamp.reasoning, stamp_status=stamp.status.value, constitutional_health=0.0, stamp_id=action.action_id, ether_archetype=profile.archetype.value, latency_ms=int((time.perf_counter() - t0) * 1000))
+        
+        subject = SubjectCode(req.params["subject_code"])
+        session_obj = AssessmentSession(learner_grade=req.grade, subject=subject)
+        
+        item = select_next_item(session_obj, SAMPLE_ITEMS, set())
+        
+        await fe.publish_domain_event(EventType.ACTION_SUBMITTED, action, {"subject": subject.value})
+        
+        return OperationResult(
+            success=True,
+            output={"first_item": item, "session_state": {"theta": session_obj.theta, "sem": session_obj.sem}},
+            stamp_status=stamp.status.value,
+            constitutional_health=float(j.get_stats()["approval_rate"]),
+            stamp_id=action.action_id,
+            ether_archetype=profile.archetype.value,
+            latency_ms=int((time.perf_counter() - t0) * 1000)
+        )
+
+    async def _submit_diagnostic_response(self, req: OrchestratorRequest, t0: float) -> OperationResult:
+        from app.api.ml.irt_engine import AssessmentSession, ITEM_BANK, SAMPLE_ITEMS, Response, SubjectCode, activate_gap_probe, build_gap_report, check_gap_trigger, select_next_item, should_stop, update_theta_mle
+        
+        action, fe, j, _profiler, profile = await self._review_action(ActionType.SUBMIT_DIAGNOSTIC_RESPONSE, req, t0)
+        stamp = await j.review(action)
+        await fe.publish_stamp_issued(stamp, action)
+        if stamp.status == StampStatus.REJECTED:
+            return OperationResult(success=False, error=stamp.reasoning, stamp_status=stamp.status.value, constitutional_health=0.0, stamp_id=action.action_id, ether_archetype=profile.archetype.value, latency_ms=int((time.perf_counter() - t0) * 1000))
+        
+        params = req.params
+        subject = SubjectCode(params["subject_code"])
+        prev_responses = [Response(**r) if isinstance(r, dict) else r for r in params.get("previous_responses", [])]
+        
+        session_obj = AssessmentSession(learner_grade=req.grade, subject=subject)
+        session_obj.responses = prev_responses
+        session_obj.theta = params.get("theta", 0.0)
+        session_obj.sem = params.get("sem", 1.5)
+        session_obj.gap_probe_active = params.get("gap_probe_active", False)
+        session_obj.current_grade = params.get("current_grade", req.grade)
+        
+        new_resp = Response(
+            item_id=params["item_id"],
+            is_correct=params["is_correct"],
+            time_on_task_ms=params["time_on_task_ms"]
+        )
+        session_obj.responses.append(new_resp)
+        
+        session_obj.theta, session_obj.sem = update_theta_mle(session_obj.responses, ITEM_BANK)
+        
+        if check_gap_trigger(session_obj):
+            activate_gap_probe(session_obj)
+            
+        is_complete = should_stop(session_obj, max_questions=params.get("max_questions", 20))
+        next_item = None
+        gap_report = None
+        
+        if is_complete:
+            gap_report = build_gap_report(session_obj)
+        else:
+            administered = {r.item_id for r in session_obj.responses}
+            next_item = select_next_item(session_obj, SAMPLE_ITEMS, administered)
+            if not next_item:
+                is_complete = True
+                gap_report = build_gap_report(session_obj)
+                
+        return OperationResult(
+            success=True,
+            output={
+                "is_complete": is_complete,
+                "next_item": next_item.item_id if next_item else None,
+                "next_item_data": next_item,
+                "gap_report": gap_report,
+                "session_state": {
+                    "theta": session_obj.theta,
+                    "sem": session_obj.sem,
+                    "gap_probe_active": session_obj.gap_probe_active,
+                    "current_grade": session_obj.current_grade,
+                    "responses_count": len(session_obj.responses)
+                }
+            },
+            stamp_status=stamp.status.value,
+            constitutional_health=float(j.get_stats()["approval_rate"]),
+            stamp_id=action.action_id,
+            ether_archetype=profile.archetype.value,
+            latency_ms=int((time.perf_counter() - t0) * 1000)
+        )
 
 
 def get_orchestrator() -> Orchestrator:

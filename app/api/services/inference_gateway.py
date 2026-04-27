@@ -20,6 +20,7 @@ from groq import AsyncGroq
 from anthropic import AsyncAnthropic
 
 from app.api.core.config import settings
+from app.api.core.pii_patterns import PII_SCRUBBER_PATTERNS
 
 log = structlog.get_logger()
 
@@ -29,14 +30,7 @@ _OFFLINE_MODEL_PATH = os.environ.get("EDUBOOST_OFFLINE_MODEL_PATH", "./models")
 _offline_client = None
 
 # ── PII Patterns (South African) ─────────────────────────────────────────────
-_PII_PATTERNS = [
-    (re.compile(r"\b[A-Z][a-z]{2,}\s[A-Z][a-z]{2,}\b"), "[NAME]"),
-    (re.compile(r"\b\d{13}\b"), "[SA_ID]"),
-    (re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"), "[EMAIL]"),
-    # SA mobile: 06 / 07 / 08 / 09 + 8 digits (10 digits total)
-    (re.compile(r"\b0[6789]\d{8}\b"), "[PHONE]"),
-    (re.compile(r"\b\d{10,}\b"), "[NUMBER]"),
-]
+_PII_PATTERNS = PII_SCRUBBER_PATTERNS
 
 _groq_client: Optional[AsyncGroq] = (
     AsyncGroq(api_key=settings.GROQ_API_KEY) if settings.GROQ_API_KEY else None

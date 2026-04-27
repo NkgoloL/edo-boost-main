@@ -1,4 +1,5 @@
 """EduBoost SA — Diagnostic Router (IRT Adaptive Assessment)"""
+import json
 import random
 import uuid
 from datetime import datetime
@@ -12,6 +13,9 @@ from app.api.models.api_models import (
     DiagnosticRequest,
     DiagnosticRunResponse,
     DiagnosticSessionSummary,
+    DiagnosticStartResponse,
+    DiagnosticSubmitRequest,
+    DiagnosticSubmitResponse,
     ErrorResponse,
 )
 from app.api.core.database import AsyncSessionFactory
@@ -186,6 +190,185 @@ async def run_diagnostic(request: DiagnosticRequest):
                 details={"reason": str(e)},
             ).model_dump(),
         ) from e
+ 
+ 
+@router.post("/start", response_model=DiagnosticStartResponse)
+async def start_diagnostic(request: DiagnosticRequest):
+    """Start a new interactive diagnostic session."""
+    from app.api.orchestrator import OrchestratorRequest, get_orchestrator
+ 
+    orch = get_orchestrator()
+    result = await orch.run(
+        OrchestratorRequest(
+            operation="START_DIAGNOSTIC",
+            learner_id=str(request.learner_id),
+            grade=request.grade,
+            params={"subject_code": request.subject_code},
+        )
+    )
+ 
+    if not result.success:
+        raise HTTPException(status_code=500, detail=result.error)
+ 
+    output = result.output
+    first_item_data = output.get("first_item")
+    state = output.get("session_state", {})
+ 
+    # Create session in DB
+    session_id = uuid.uuid4()
+    async with AsyncSessionFactory() as session:
+        await session.execute(
+            text("""
+                INSERT INTO diagnostic_sessions 
+                (session_id, learner_id, subject_code, grade_level, status, theta_estimate, 
+                 standard_error, items_administered, items_total, started_at)
+                VALUES (:session_id, :learner_id, :subject_code, :grade_level, 'in_progress', 
+                        :theta, :sem, 0, :max_questions, :started_at)
+            """),
+            {
+                "session_id": session_id,
+                "learner_id": request.learner_id,
+                "subject_code": request.subject_code,
+                "grade_level": request.grade,
+                "theta": state.get("theta", 0.0),
+                "sem": state.get("sem", 1.5),
+                "max_questions": request.max_questions,
+                "started_at": datetime.utcnow(),
+            },
+        )
+        await session.commit()
+ 
+    first_item = None
+    if first_item_data:
+        first_item = DiagnosticItem(
+            item_id=first_item_data.get("item_id") if isinstance(first_item_data, dict) else first_item_data.item_id,
+            question_text=first_item_data.get("question_text") if isinstance(first_item_data, dict) else first_item_data.question_text,
+            options=first_item_data.get("options") if isinstance(first_item_data, dict) else first_item_data.options,
+            story_context=first_item_data.get("story_context") if isinstance(first_item_data, dict) else first_item_data.story_context,
+            difficulty_label=first_item_data.get("difficulty_label") if isinstance(first_item_data, dict) else first_item_data.difficulty_label,
+        )
+ 
+    return DiagnosticStartResponse(success=True, session_id=session_id, first_item=first_item)
+ 
+ 
+@router.post("/session/{session_id}/respond", response_model=DiagnosticSubmitResponse)
+async def submit_diagnostic_response(session_id: uuid.UUID, request: DiagnosticSubmitRequest):
+    """Submit a response to the current item and get the next one."""
+    from app.api.orchestrator import OrchestratorRequest, get_orchestrator
+ 
+    async with AsyncSessionFactory() as session:
+        result = await session.execute(
+            text("SELECT * FROM diagnostic_sessions WHERE session_id = :session_id"),
+            {"session_id": session_id}
+        )
+        session_row = result.mappings().first()
+ 
+    if not session_row:
+        raise HTTPException(status_code=404, detail="Session not found")
+ 
+    if session_row["status"] == "completed":
+        raise HTTPException(status_code=400, detail="Session already completed")
+ 
+    async with AsyncSessionFactory() as session:
+        result = await session.execute(
+            text("SELECT item_id, is_correct, time_taken_ms FROM diagnostic_responses WHERE session_id = :session_id"),
+            {"session_id": session_id}
+        )
+        resp_rows = result.mappings().all()
+        previous_responses = [{"item_id": r["item_id"], "is_correct": r["is_correct"], "time_on_task_ms": r["time_taken_ms"]} for r in resp_rows]
+ 
+    orch = get_orchestrator()
+    orch_result = await orch.run(
+        OrchestratorRequest(
+            operation="SUBMIT_DIAGNOSTIC_RESPONSE",
+            learner_id=str(session_row["learner_id"]),
+            grade=session_row["grade_level"],
+            params={
+                "subject_code": session_row["subject_code"],
+                "item_id": request.item_id,
+                "is_correct": request.is_correct,
+                "time_on_task_ms": request.time_on_task_ms,
+                "previous_responses": previous_responses,
+                "theta": session_row["theta_estimate"],
+                "sem": session_row["standard_error"],
+                "max_questions": session_row["items_total"],
+            },
+        )
+    )
+ 
+    if not orch_result.success:
+        raise HTTPException(status_code=500, detail=orch_result.error)
+ 
+    output = orch_result.output
+    state = output["session_state"]
+ 
+    async with AsyncSessionFactory() as session:
+        await session.execute(
+            text("""
+                INSERT INTO diagnostic_responses 
+                (response_id, session_id, item_id, learner_response, is_correct, 
+                 time_taken_ms, theta_before, theta_after, sem_before, sem_after, responded_at)
+                VALUES (:response_id, :session_id, :item_id, :learner_response, :is_correct, 
+                        :time_taken_ms, :theta_before, :theta_after, :sem_before, :sem_after, :at)
+            """),
+            {
+                "response_id": uuid.uuid4(),
+                "session_id": session_id,
+                "item_id": request.item_id,
+                "learner_response": "correct" if request.is_correct else "incorrect",
+                "is_correct": request.is_correct,
+                "time_taken_ms": request.time_on_task_ms,
+                "theta_before": session_row["theta_estimate"],
+                "theta_after": state["theta"],
+                "sem_before": session_row["standard_error"],
+                "sem_after": state["sem"],
+                "at": datetime.utcnow(),
+            }
+        )
+ 
+        status_val = "completed" if output["is_complete"] else "in_progress"
+        completed_at = datetime.utcnow() if output["is_complete"] else None
+        
+        await session.execute(
+            text("""
+                UPDATE diagnostic_sessions 
+                SET status = :status, theta_estimate = :theta, standard_error = :sem, 
+                    items_administered = :count, knowledge_gaps = :gaps, completed_at = :cat
+                WHERE session_id = :session_id
+            """),
+            {
+                "session_id": session_id,
+                "status": status_val,
+                "theta": state["theta"],
+                "sem": state["sem"],
+                "count": state["responses_count"],
+                "gaps": json.dumps(output["gap_report"]["knowledge_gaps"]) if output["is_complete"] else '[]',
+                "cat": completed_at,
+            }
+        )
+        await session.commit()
+ 
+    next_item = None
+    if output["next_item_data"]:
+        ni = output["next_item_data"]
+        next_item = DiagnosticItem(
+            item_id=ni.get("item_id") if isinstance(ni, dict) else ni.item_id,
+            question_text=ni.get("question_text") if isinstance(ni, dict) else ni.question_text,
+            options=ni.get("options") if isinstance(ni, dict) else ni.options,
+            story_context=ni.get("story_context") if isinstance(ni, dict) else ni.story_context,
+            difficulty_label=ni.get("difficulty_label") if isinstance(ni, dict) else ni.difficulty_label,
+        )
+ 
+    if output["is_complete"]:
+        from app.api.tasks.plan_tasks import refresh_study_plan_task
+        refresh_study_plan_task.delay(str(session_row["learner_id"]))
+ 
+    return DiagnosticSubmitResponse(
+        success=True,
+        is_complete=output["is_complete"],
+        next_item=next_item,
+        gap_report=output["gap_report"],
+    )
 
 
 @router.get(

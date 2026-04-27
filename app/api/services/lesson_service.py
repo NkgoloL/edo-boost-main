@@ -49,26 +49,28 @@ class LessonCache:
         key_hash = hashlib.sha256(key_str.encode()).hexdigest()[:32]
         return f"lesson:{key_hash}"
     
-    async def get(self, params: "LessonParams") -> Optional["GeneratedLesson"]:
+    async def get(self, params: "LessonParams") -> Optional[Tuple["GeneratedLesson", str]]:
         """Get cached lesson if available and not expired."""
         key = self._generate_key(params)
         try:
             cached_data = await self._redis.get(key)
             if cached_data:
                 log.info("lesson_cache.hit", key=key)
-                return GeneratedLesson.model_validate_json(cached_data)
+                # Return both the lesson and the ID (stripping 'lesson:' prefix)
+                return GeneratedLesson.model_validate_json(cached_data), key.replace("lesson:", "")
         except Exception as e:
             log.warning("lesson_cache.get_error", error=str(e), key=key)
         return None
     
-    async def set(self, params: "LessonParams", lesson: "GeneratedLesson") -> None:
-        """Cache a generated lesson."""
+    async def set(self, params: "LessonParams", lesson: "GeneratedLesson") -> str:
+        """Cache a generated lesson. Returns the generated lesson ID."""
         key = self._generate_key(params)
         try:
             await self._redis.set(key, lesson.model_dump_json(), ex=self._ttl)
             log.info("lesson_cache.stored", key=key, topic=params.topic)
         except Exception as e:
             log.warning("lesson_cache.set_error", error=str(e), key=key)
+        return key.replace("lesson:", "")
     
     async def clear(self) -> int:
         """Clear all cached lessons. Returns count of entries cleared."""
@@ -223,7 +225,7 @@ async def generate_lesson_from_prompts(system_prompt: str, user_prompt: str) -> 
         ) from e
 
 
-async def generate_lesson(params: LessonParams) -> GeneratedLesson:
+async def generate_lesson(params: LessonParams) -> Tuple[GeneratedLesson, str]:
     """
     Generate a complete CAPS-aligned lesson.
     params must contain ZERO learner PII.
@@ -232,9 +234,9 @@ async def generate_lesson(params: LessonParams) -> GeneratedLesson:
     """
     # Check cache first
     cache = get_lesson_cache()
-    cached_lesson = await cache.get(params)
-    if cached_lesson is not None:
-        return cached_lesson
+    cached = await cache.get(params)
+    if cached is not None:
+        return cached
     
     # Generate new lesson
     grade_name = GRADES.get(params.grade, "Grade 3")
@@ -242,10 +244,10 @@ async def generate_lesson(params: LessonParams) -> GeneratedLesson:
     log.info("lesson_service.generate", grade=grade_name, subject=params.subject_code, topic=params.topic)
     lesson = await generate_lesson_from_prompts(system_prompt, user_prompt)
     
-    # Cache the generated lesson
-    await cache.set(params, lesson)
+    # Cache the generated lesson and get its ID
+    lesson_id = await cache.set(params, lesson)
     
-    return lesson
+    return lesson, lesson_id
 
 
 async def generate_study_plan(
@@ -260,34 +262,30 @@ async def generate_study_plan(
     grade_name = GRADES.get(grade, "Grade 3")
     gaps_summary = ", ".join([f"{g['subject']} at {GRADES.get(g.get('gap_grade', grade), grade_name)} level" for g in knowledge_gaps]) if knowledge_gaps else "none detected"
 
-    system = "You are a CAPS curriculum planner. Create personalised weekly study plans. Return ONLY valid JSON."
-    user = f"""Create a one-week study plan.
+    # Fetch templates from DB
+    async with AsyncSessionFactory() as session:
+        result = await session.execute(
+            text("SELECT system_prompt, user_prompt_template FROM prompt_templates WHERE template_type = 'study_plan' AND is_active = TRUE LIMIT 1")
+        )
+        row = result.mappings().first()
+    
+    if not row:
+        log.warning("lesson_service.template_missing", type="study_plan")
+        system = "You are a CAPS curriculum planner. Create personalised weekly study plans. Return ONLY valid JSON."
+        user_template = "Create a one-week study plan for Grade {grade_name}. Gaps: {gaps_summary}. Mastery: {subjects_mastery_str}."
+    else:
+        system = row["system_prompt"]
+        user_template = row["user_prompt_template"]
 
-Grade: {grade_name}
-Knowledge Gaps: {gaps_summary}
-Subject Mastery: {', '.join([f'{k}: {v}%' for k, v in subjects_mastery.items()])}
+    subjects_mastery_str = ', '.join([f'{k}: {v}%' for k, v in subjects_mastery.items()])
+    user = user_template.format(
+        grade_name=grade_name,
+        gaps_summary=gaps_summary,
+        subjects_mastery_str=subjects_mastery_str
+    )
 
-Return JSON:
-{{
-  "week_focus": "brief focus description (max 12 words)",
-  "gap_ratio": 0.4,
-  "days": {{
-    "Mon": [{{"code": "SUBJ_TOPIC", "label": "Short name", "emoji": "emoji", "type": "gap-fill", "minutes": 15}}],
-    "Tue": [...],
-    "Wed": [...],
-    "Thu": [...],
-    "Fri": [...],
-    "Sat": [{{"code": "REV", "label": "Weekend Review", "emoji": "⭐", "type": "grade-level", "minutes": 20}}],
-    "Sun": []
-  }}
-}}
-
-- 2-3 sessions per weekday, 1 on Saturday, none Sunday
-- Mix "gap-fill" and "grade-level" types
-- gap_ratio: proportion of gap-fill sessions (0.0-1.0)"""
-
-    text = await call_llm(system, user, max_tokens=900)
-    return parse_json_response(text)
+    text_resp = await call_llm(system, user, max_tokens=900)
+    return parse_json_response(text_resp)
 
 
 async def generate_parent_report(
@@ -303,23 +301,31 @@ async def generate_parent_report(
     """
     grade_name = GRADES.get(grade, "Grade 3")
 
-    system = "You are an educational progress report generator for South African parents. Be warm, encouraging, and use SA cultural references. Return only JSON."
-    user = f"""Generate a parent progress report.
+    # Fetch templates from DB
+    async with AsyncSessionFactory() as session:
+        result = await session.execute(
+            text("SELECT system_prompt, user_prompt_template FROM prompt_templates WHERE template_type = 'parent_report' AND is_active = TRUE LIMIT 1")
+        )
+        row = result.mappings().first()
+    
+    if not row:
+        log.warning("lesson_service.template_missing", type="parent_report")
+        system = "You are an educational progress report generator for South African parents. Be warm, encouraging, and use SA cultural references. Return only JSON."
+        user_template = "Generate a parent progress report for Grade {grade_name}. Streak: {streak_days}, XP: {total_xp}, Mastery: {subjects_mastery_str}, Gaps: {gaps_str}."
+    else:
+        system = row["system_prompt"]
+        user_template = row["user_prompt_template"]
 
-Grade: {grade_name}
-Learning Streak: {streak_days} days
-Total XP Earned: {total_xp}
-Subject Mastery: {', '.join([f'{k}: {v}%' for k, v in subjects_mastery.items()])}
-Knowledge Gaps: {', '.join([g.get('subject', '') for g in gaps]) or 'none'}
+    subjects_mastery_str = ', '.join([f'{k}: {v}%' for k, v in subjects_mastery.items()])
+    gaps_str = ', '.join([g.get('subject', '') for g in gaps]) or 'none'
+    
+    user = user_template.format(
+        grade_name=grade_name,
+        streak_days=streak_days,
+        total_xp=total_xp,
+        subjects_mastery_str=subjects_mastery_str,
+        gaps_str=gaps_str
+    )
 
-Return JSON:
-{{
-  "summary": "2 encouraging sentences about progress",
-  "strengths": ["strength 1", "strength 2", "strength 3"],
-  "areas_to_improve": ["area 1", "area 2"],
-  "recommendation": "1-2 sentence practical tip a SA parent can do at home",
-  "next_milestones": ["milestone 1", "milestone 2"]
-}}"""
-
-    text = await call_llm(system, user, max_tokens=700)
-    return parse_json_response(text)
+    text_resp = await call_llm(system, user, max_tokens=700)
+    return parse_json_response(text_resp)

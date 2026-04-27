@@ -79,6 +79,7 @@ async def generate_lesson_endpoint(request: LessonRequest, _db=Depends(get_db)):
 
     return LessonGenerationResponse(
         success=True,
+        lesson_id=result.lesson_id or "unknown",
         lesson=result.output,
         meta=LessonMeta(
             stamp_status=result.stamp_status,

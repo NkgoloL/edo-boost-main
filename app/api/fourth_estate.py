@@ -123,5 +123,9 @@ class FourthEstate:
 def get_fourth_estate() -> FourthEstate:
     global _fourth_estate
     if _fourth_estate is None:
-        _fourth_estate = FourthEstate()
+        from app.api.core.config import settings
+        _fourth_estate = FourthEstate(
+            redis_url=settings.REDIS_URL,
+            stream_key=settings.FOURTH_ESTATE_STREAM_KEY,
+        )
     return _fourth_estate

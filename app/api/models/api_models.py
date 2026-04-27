@@ -98,6 +98,25 @@ class DiagnosticItemsResponse(StrictSchema):
     count: int
 
 
+class DiagnosticStartResponse(StrictSchema):
+    success: bool
+    session_id: UUID
+    first_item: DiagnosticItem | None
+
+
+class DiagnosticSubmitRequest(StrictSchema):
+    item_id: str
+    is_correct: bool
+    time_on_task_ms: int
+
+
+class DiagnosticSubmitResponse(StrictSchema):
+    success: bool
+    is_complete: bool
+    next_item: DiagnosticItem | None = None
+    gap_report: dict[str, Any] | None = None
+
+
 class GuardianLoginRequest(StrictSchema):
     email: str = Field(min_length=3, max_length=320)
     learner_pseudonym_id: str = Field(min_length=1)
@@ -150,6 +169,7 @@ class LessonMeta(StrictSchema):
 
 class LessonGenerationResponse(StrictSchema):
     success: bool
+    lesson_id: str
     lesson: dict[str, Any]
     meta: LessonMeta
 

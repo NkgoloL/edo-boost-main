@@ -39,7 +39,7 @@ POPIA_01 = _rule(
     RuleSeverity.CRITICAL,
     "Verify no learner-identifying tokens reach external processors.",
     "POPIA Act 4 of 2013 — Processing limitation",
-    (ActionType.GENERATE_LESSON, ActionType.RUN_DIAGNOSTIC),
+    (ActionType.GENERATE_LESSON, ActionType.RUN_DIAGNOSTIC, ActionType.START_DIAGNOSTIC, ActionType.SUBMIT_DIAGNOSTIC_RESPONSE),
 )
 POPIA_02 = _rule(
     "POPIA_02",
@@ -71,7 +71,7 @@ CAPS_02 = _rule(
     RuleSeverity.MEDIUM,
     "Assessments must respect subject and grade scope.",
     "CAPS scope",
-    (ActionType.RUN_DIAGNOSTIC,),
+    (ActionType.RUN_DIAGNOSTIC, ActionType.START_DIAGNOSTIC, ActionType.SUBMIT_DIAGNOSTIC_RESPONSE),
 )
 CAPS_03 = _rule(
     "CAPS_03",
@@ -95,7 +95,7 @@ PII_01 = _rule(
     RuleSeverity.CRITICAL,
     "No UUIDs, emails, phone numbers, or SA ID numbers in LLM-bound prompts.",
     "POPIA — Pseudonymisation / LLM firewall",
-    (ActionType.GENERATE_LESSON, ActionType.RUN_DIAGNOSTIC),
+    (ActionType.GENERATE_LESSON, ActionType.RUN_DIAGNOSTIC, ActionType.START_DIAGNOSTIC, ActionType.SUBMIT_DIAGNOSTIC_RESPONSE),
 )
 LANG_01 = _rule(
     "LANG_01",

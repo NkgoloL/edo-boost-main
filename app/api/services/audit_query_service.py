@@ -326,6 +326,7 @@ class AuditQueryService:
                 violation_count=violation_count,
                 rejection_count=rejection_count,
                 llm_success_rate=llm_success_rate,
+                total_events=total_events,
             ),
         }
 
@@ -334,6 +335,7 @@ class AuditQueryService:
         violation_count: int,
         rejection_count: int,
         llm_success_rate: float,
+        total_events: int,
     ) -> list[str]:
         """Generate recommendations based on compliance metrics."""
         recommendations = []

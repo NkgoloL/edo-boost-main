@@ -32,6 +32,8 @@ class ActionType(str, Enum):
     GENERATE_STUDY_PLAN = "GENERATE_STUDY_PLAN"
     GENERATE_PARENT_REPORT = "GENERATE_PARENT_REPORT"
     RECORD_CONSENT = "RECORD_CONSENT"
+    START_DIAGNOSTIC = "START_DIAGNOSTIC"
+    SUBMIT_DIAGNOSTIC_RESPONSE = "SUBMIT_DIAGNOSTIC_RESPONSE"
 
 
 class ActionStatus(str, Enum):
@@ -175,5 +177,6 @@ class OperationResult(BaseModel):
     stamp_status: str = "PENDING"
     constitutional_health: float = Field(default=0.0, ge=0.0, le=1.0)
     stamp_id: Optional[str] = None
+    lesson_id: Optional[str] = None
     ether_archetype: Optional[str] = None
     latency_ms: int = 0

@@ -76,30 +76,26 @@ async def _verify_guardian(email: str, learner_pseudonym_id: str) -> bool:
     email_hash = hashlib.sha256(email.lower().strip().encode()).hexdigest()
     try:
         async with AsyncSessionFactory() as session:
-            identity = await session.execute(
-                text(
-                    "SELECT 1 FROM learner_identities "
-                    "WHERE pseudonym_id = :pid "
-                    "AND COALESCE(data_deletion_requested, false) = false "
-                    "LIMIT 1"
-                ),
-                {"pid": learner_pseudonym_id},
+            # 1. Find parent account by email hash
+            result = await session.execute(
+                select(ParentAccount).where(ParentAccount.email_encrypted == email_hash)
             )
-            if identity.first() is None:
-                log.warning("auth.guardian.identity_not_found", pseudonym=learner_pseudonym_id)
+            parent = result.scalar_one_or_none()
+            if not parent:
+                log.warning("auth.guardian.account_not_found", email_hash=email_hash)
                 return False
-
-            consent = await session.execute(
-                text(
-                    "SELECT guardian_email_hash FROM consent_audit "
-                    "WHERE pseudonym_id = :pid AND event_type = 'CONSENT_GIVEN'"
-                ),
-                {"pid": learner_pseudonym_id},
+            
+            # 2. Check for direct link to this learner
+            link_result = await session.execute(
+                select(ParentLearnerLink).where(
+                    ParentLearnerLink.parent_id == parent.parent_id,
+                    ParentLearnerLink.learner_id == uuid.UUID(learner_pseudonym_id)
+                )
             )
-            hashes = [row[0] for row in consent.fetchall() if row[0]]
-            if hashes and email_hash not in hashes:
-                log.warning("auth.guardian.email_mismatch", pseudonym=learner_pseudonym_id)
+            if link_result.first() is None:
+                log.warning("auth.guardian.no_link_found", parent_id=str(parent.parent_id), learner_id=learner_pseudonym_id)
                 return False
+            
         return True
     except Exception as e:
         log.error("auth.guardian.db_error", error=str(e))

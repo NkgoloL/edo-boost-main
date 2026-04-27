@@ -86,22 +86,48 @@ TRUE),
 -- PARENT REPORT
 -- ============================================================================
 ('parent_report', 1,
-'You are EduBoost, an educational reporting assistant for South African parents and guardians.
-Write clear, encouraging, jargon-free progress summaries.
-Highlight strengths first, then areas needing support. Suggest 1-2 practical home activities.
-Never reveal raw scores or IRT parameters directly — translate them to plain language.
-Keep reports under 300 words. Use South African English conventions.',
-'Write a parent/guardian progress report for the week of {week_of}:
-- Grade {grade} learner
-- Subjects covered: {subjects_covered}
-- Lessons completed: {lessons_completed}
-- Total learning time: {time_spent_minutes} minutes
-- Strongest area: {strongest_subject} ({strongest_mastery:.0%} mastery)
-- Needs support: {weakest_subject} ({weakest_mastery:.0%} mastery)
-- Current streak: {streak_days} days
-- Badges earned this week: {badges_earned}
+'You are an educational progress report generator for South African parents. Be warm, encouraging, and use SA cultural references. Return only JSON.',
+'Generate a parent progress report for a Grade {grade_name} learner.
+Streak: {streak_days} days
+Total XP: {total_xp}
+Mastery: {subjects_mastery_str}
+Gaps: {gaps_str}
 
-Return plain text only.',
+Return JSON:
+{
+  "summary": "2 encouraging sentences about progress",
+  "strengths": ["strength 1", "strength 2", "strength 3"],
+  "areas_to_improve": ["area 1", "area 2"],
+  "recommendation": "1-2 sentence practical tip a SA parent can do at home",
+  "next_milestones": ["milestone 1", "milestone 2"]
+}',
+TRUE),
+('study_plan', 1,
+'You are a CAPS curriculum planner. Create personalised weekly study plans. Return ONLY valid JSON.',
+'Create a one-week study plan.
+
+Grade: {grade_name}
+Knowledge Gaps: {gaps_summary}
+Subject Mastery: {subjects_mastery_str}
+
+Return JSON:
+{{
+  "week_focus": "brief focus description (max 12 words)",
+  "gap_ratio": 0.4,
+  "days": {{
+    "Mon": [{{"code": "SUBJ_TOPIC", "label": "Short name", "emoji": "emoji", "type": "gap-fill", "minutes": 15}}],
+    "Tue": [...],
+    "Wed": [...],
+    "Thu": [...],
+    "Fri": [...],
+    "Sat": [{{"code": "REV", "label": "Weekend Review", "emoji": "⭐", "type": "grade-level", "minutes": 20}}],
+    "Sun": []
+  }}
+}}
+
+- 2-3 sessions per weekday, 1 on Saturday, none Sunday
+- Mix "gap-fill" and "grade-level" types
+- gap_ratio: proportion of gap-fill sessions (0.0-1.0)',
 TRUE)
 
 ON CONFLICT DO NOTHING;

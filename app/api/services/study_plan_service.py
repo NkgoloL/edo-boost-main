@@ -60,14 +60,37 @@ class StudyPlanService:
         normalized_gap_ratio = max(0.3, min(0.6, gap_ratio))
         grade_band = "R-3" if grade <= 3 else "4-7"
 
-        schedule = self._generate_weekly_schedule(
-            grade=grade,
-            grade_band=grade_band,
-            subjects_mastery=subjects_mastery,
-            knowledge_gaps=knowledge_gaps,
-            gap_ratio=normalized_gap_ratio,
+        from app.api.orchestrator import get_orchestrator, OrchestratorRequest
+        
+        orch = get_orchestrator()
+        result = await orch.run(
+            OrchestratorRequest(
+                operation="GENERATE_STUDY_PLAN",
+                learner_id=str(learner_id),
+                grade=grade,
+                params={
+                    "knowledge_gaps": knowledge_gaps,
+                    "subjects_mastery": subjects_mastery,
+                    "gap_ratio": normalized_gap_ratio,
+                }
+            )
         )
-        week_focus = self._determine_week_focus(knowledge_gaps, subjects_mastery)
+
+        if not result.success:
+            log.error("study_plan_service.orchestrator_failed", error=result.error)
+            # Fallback to programmatic logic if orchestrator fails
+            schedule = self._generate_weekly_schedule(
+                grade=grade,
+                grade_band=grade_band,
+                subjects_mastery=subjects_mastery,
+                knowledge_gaps=knowledge_gaps,
+                gap_ratio=normalized_gap_ratio,
+            )
+            week_focus = self._determine_week_focus(knowledge_gaps, subjects_mastery)
+        else:
+            plan_data = result.output
+            schedule = plan_data.get("days", {})
+            week_focus = plan_data.get("week_focus", "Focus on key concepts.")
 
         plan = StudyPlan(
             plan_id=uuid.uuid4(),

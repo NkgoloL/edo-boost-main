@@ -50,12 +50,26 @@ async def _refresh_study_plan(learner_id: str):
     
     subjects_mastery = {r["subject_code"]: round(r["mastery_score"] * 100) for r in mastery_rows}
 
-    # 3. Generate the plan via LLM
-    plan_data = await generate_study_plan(
-        grade=grade,
-        knowledge_gaps=knowledge_gaps,
-        subjects_mastery=subjects_mastery,
+    # 3. Generate the plan via Orchestrator (handles constitutional review, profiling, audit)
+    from app.api.orchestrator import get_orchestrator, OrchestratorRequest
+    orch = get_orchestrator()
+    result = await orch.run(
+        OrchestratorRequest(
+            operation="GENERATE_STUDY_PLAN",
+            learner_id=learner_id,
+            grade=grade,
+            params={
+                "knowledge_gaps": knowledge_gaps,
+                "subjects_mastery": subjects_mastery,
+            },
+        )
     )
+
+    if not result.success:
+        logger.error(f"Orchestrator failed to generate study plan: {result.error}")
+        return
+
+    plan_data = result.output
 
     # 4. Persist the plan to DB
     import json

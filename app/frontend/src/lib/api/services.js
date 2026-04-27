@@ -40,3 +40,23 @@ export const ParentService = {
     
   getReport: (learnerId) => fetchApi(`/parent/learner/${learnerId}/report`),
 };
+
+export const DiagnosticService = {
+  start: (data) =>
+    fetchApi("/diagnostic/start", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  submitResponse: (sessionId, data) =>
+    fetchApi(`/diagnostic/session/${sessionId}/respond`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  runLegacy: (data) =>
+    fetchApi("/diagnostic/run", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+};

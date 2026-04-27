@@ -12,13 +12,12 @@ from app.api.constitutional_schema.types import (
     JudiciaryStamp,
     StampStatus,
 )
+from app.api.core.pii_patterns import EMAIL_RE, PHONE_RE, SA_ID_RE, UUID_RE
 
-_UUID_RE = re.compile(
-    r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
-)
-_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
-_PHONE_RE = re.compile(r"\b0[67]\d{8}\b")
-_SA_ID_RE = re.compile(r"\b\d{13}\b")
+_UUID_RE = UUID_RE
+_EMAIL_RE = EMAIL_RE
+_PHONE_RE = PHONE_RE
+_SA_ID_RE = SA_ID_RE
 
 _LESSON_ALLOWED_KEYS = frozenset({
     "subject_code",

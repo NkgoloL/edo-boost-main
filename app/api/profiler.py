@@ -9,6 +9,7 @@ from typing import Any, Optional, Tuple
 
 from app.api.constitutional_schema.types import EtherArchetype, EtherToneParams, LearnerEtherProfile
 from app.api.core.config import settings
+import redis.asyncio as redis_async
 
 _DEFAULT_ARCHETYPE = EtherArchetype.TIFERET
 
@@ -113,6 +114,16 @@ class EtherProfiler:
 
     async def get_profile(self, learner_id: str) -> LearnerEtherProfile:
         lh = _learner_hash(learner_id)
+        # Try Redis first
+        try:
+            r = redis_async.from_url(settings.REDIS_URL)
+            raw = await r.get(f"ether:{lh}")
+            if raw:
+                return LearnerEtherProfile.model_validate_json(raw)
+        except Exception:
+            pass
+
+        # Cold start fallback
         base = _ARCHETYPE_DEFAULTS[_DEFAULT_ARCHETYPE]
         return LearnerEtherProfile(
             learner_hash=lh,
@@ -128,7 +139,7 @@ class EtherProfiler:
         base = _ARCHETYPE_DEFAULTS.get(archetype, _ARCHETYPE_DEFAULTS[_DEFAULT_ARCHETYPE])
         signals = self._extract_signals(events)
         tuned = self._tune_params(base, signals)
-        return LearnerEtherProfile(
+        profile = LearnerEtherProfile(
             learner_hash=_learner_hash(learner_id),
             archetype=archetype,
             tone_params=tuned,
@@ -136,6 +147,19 @@ class EtherProfiler:
             data_points=len(events),
             expires_at=datetime.now(timezone.utc) + timedelta(hours=6),
         )
+        
+        # Persist to Redis
+        try:
+            r = redis_async.from_url(settings.REDIS_URL)
+            await r.setex(
+                f"ether:{profile.learner_hash}",
+                int(settings.ETHER_PROFILE_TTL),
+                profile.model_dump_json()
+            )
+        except Exception:
+            pass
+            
+        return profile
 
 
 def get_profiler() -> EtherProfiler:
