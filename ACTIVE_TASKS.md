@@ -25,6 +25,7 @@ Each item should be closed only when implemented, verified (tests or runtime val
   - [x] Implement cleanup/rotation that never drops below the persistence floor
   - [x] Add configuration knobs (target size, floor ratio, cadence)
 
-- [ ] **Commits**
-  - [ ] Commit in small batches after each milestone (docs → backend green → generator → persistence floor)
+- [x] **Commits**
+  - [x] Commit in small batches after each milestone (docs → backend green → generator → persistence floor)
+  - [x] Implement frontend gamification and state management refactor
 
