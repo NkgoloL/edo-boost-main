@@ -20,7 +20,7 @@ ISSUE_MAP = {
     "audit": 10, "log": 10, "event": 10,
     "lesson": 11, "catalog": 11, "content": 11,
     "learner": 12, "onboarding": 12, "nickname": 12,
-    "infra": 13, "docker": 13, "devops": 13, "deploy": 13,
+    "infra": 13, "docker": 13, "devops": 13, "deploy": 13, "redmine": 13, "sync": 13,
     "test": 14, "qa": 14, "coverage": 14, "vitest": 14, "pytest": 14,
 }
 
