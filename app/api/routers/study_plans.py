@@ -33,6 +33,17 @@ async def generate_study_plan(request: StudyPlanRequest):
                 subjects_mastery=request.subjects_mastery,
                 gap_ratio=request.gap_ratio,
             )
+            
+            # Emit audit event
+            from app.api.core.audit_helpers import emit_study_plan_event
+            await emit_study_plan_event(
+                session=session,
+                learner_id=request.learner_id,
+                plan_id=plan['plan_id'],
+                event_type="STUDY_PLAN_GENERATED",
+            )
+            await session.commit()
+            
             return StudyPlanGenerationResponse(success=True, plan=plan)
         except ValueError as e:
             raise HTTPException(
@@ -78,6 +89,17 @@ async def refresh_study_plan(learner_id: UUID, gap_ratio: float = Query(default=
         try:
             service = StudyPlanService(session)
             plan = await service.refresh_plan(learner_id=learner_id, gap_ratio=gap_ratio)
+            
+            # Emit audit event
+            from app.api.core.audit_helpers import emit_study_plan_event
+            await emit_study_plan_event(
+                session=session,
+                learner_id=learner_id,
+                plan_id=plan['plan_id'],
+                event_type="STUDY_PLAN_REFRESHED",
+            )
+            await session.commit()
+            
             return StudyPlanGenerationResponse(success=True, plan=plan)
         except ValueError as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
@@ -102,3 +124,53 @@ async def get_study_plan_rationale(learner_id: UUID):
             raise HTTPException(status_code=404, detail=str(e)) from e
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"Failed to get plan rationale: {e}") from e
+
+
+@router.get("/{learner_id}/history")
+async def get_study_plan_history(learner_id: UUID, limit: int = Query(default=20, ge=1, le=100)):
+    """
+    Get historical study plans for a learner.
+    
+    Returns all previously generated plans for this learner, ordered by creation date (newest first).
+    Useful for tracking learning trajectory and plan evolution.
+    """
+    async with AsyncSessionFactory() as session:
+        try:
+            from sqlalchemy import select
+            from app.api.models.db_models import StudyPlan
+            
+            result = await session.execute(
+                select(StudyPlan)
+                .where(StudyPlan.learner_id == learner_id)
+                .order_by(StudyPlan.created_at.desc())
+                .limit(limit)
+            )
+            plans = result.scalars().all()
+            
+            if not plans:
+                return {
+                    "success": True,
+                    "learner_id": str(learner_id),
+                    "plans": [],
+                    "count": 0,
+                }
+            
+            return {
+                "success": True,
+                "learner_id": str(learner_id),
+                "plans": [
+                    {
+                        "plan_id": str(plan.plan_id),
+                        "week_start": plan.week_start.isoformat(),
+                        "gap_ratio": plan.gap_ratio,
+                        "week_focus": plan.week_focus,
+                        "generated_by": plan.generated_by,
+                        "created_at": plan.created_at.isoformat(),
+                        "schedule": plan.schedule,
+                    }
+                    for plan in plans
+                ],
+                "count": len(plans),
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e

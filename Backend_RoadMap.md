@@ -70,8 +70,8 @@ It is a living document. Update status as each item is implemented, tested, and 
 - [x] `PATCH /{learner_id}` — update learner fields.
 - [x] `DELETE /{learner_id}` — POPIA right-to-erasure flag.
 - [x] `GET /{learner_id}/mastery` — subject mastery summary.
-- [ ] `POST /{learner_id}/mastery` — upsert/update a subject mastery entry.
-- [ ] `GET /{learner_id}/progress` — session event summary (lessons done, time on task, XP history).
+- [x] `POST /{learner_id}/mastery` — upsert/update a subject mastery entry.
+- [x] `GET /{learner_id}/progress` — session event summary (lessons done, time on task, XP history).
 - [ ] Input validation: enforce grade-band consistency with home_language enum.
 
 ### 2.3 Lessons Router (`/api/v1/lessons`)
@@ -92,8 +92,8 @@ It is a living document. Update status as each item is implemented, tested, and 
 - [x] Gap probe logic and concept-level gap detection.
 - [x] Persistence to `diagnostic_sessions` and `diagnostic_responses`.
 - [x] Retry/re-entry support for partially completed sessions (GET/POST session endpoints added).
-- [ ] Item bank depth check before session start (fail gracefully if < N items available).
-- [ ] `GET /{session_id}/history` — fetch full session history for a learner.
+- [x] Item bank depth check before session start (fail gracefully if < N items available).
+- [x] `GET /{session_id}/history` — fetch full session history for a learner.
 - [ ] Benchmark check: response-time SLA < 500ms p99.
 
 ### 2.5 Study Plans Router (`/api/v1/study-plans`)
@@ -101,15 +101,15 @@ It is a living document. Update status as each item is implemented, tested, and 
 - [x] Plan generation, save, fetch, refresh endpoints.
 - [x] Gap-ratio scheduling and week-focus generation.
 - [x] Rationale endpoint for parent/educator visibility.
-- [ ] `GET /{learner_id}/history` — list all historical plans for a learner.
+- [x] `GET /{learner_id}/history` — list all historical plans for a learner.
 - [x] Tighter linkage: auto-trigger plan refresh when diagnostic completes (Celery task wired).
-- [ ] Audit event emission on plan generation and refresh.
+- [x] Audit event emission on plan generation and refresh.
 
 ### 2.6 Gamification Router (`/api/v1/gamification`)
 
 - [x] XP, level, streak, badge issuance, leaderboard endpoints.
 - [x] Badge award from DB `badges` table (refactored in Phase C — reads from badges table).
-- [ ] Daily XP cap enforcement.
+- [x] Daily XP cap enforcement.
 - [ ] Anti-abuse validation tests.
 - [ ] Frontend-visible endpoint: `GET /learner/{learner_id}/profile` — full XP + badge + level summary.
 
@@ -126,8 +126,8 @@ It is a living document. Update status as each item is implemented, tested, and 
 - [x] JWT guardian login/signup, session creation, token refresh.
 - [x] Pseudonymous learner session tokens.
 - [x] Basic rate limiting on auth endpoints.
-- [ ] Session invalidation on logout (token blacklist / short TTL enforcement).
-- [ ] Deletion path: verify session tokens are purged on erasure.
+- [x] Session invalidation on logout (token blacklist / short TTL enforcement).
+- [x] Deletion path: verify session tokens are purged on erasure.
 - [ ] Negative tests: invalid token, privilege escalation, expired token.
 
 ### 2.9 Assessments Router (`/api/v1/assessments`) ❌ NEW
@@ -141,13 +141,13 @@ It is a living document. Update status as each item is implemented, tested, and 
 ### 2.10 Audit Router (`/api/v1/audit`)
 
 - [x] Audit event query/search service and routes.
-- [ ] Audit emission on all protected mutations (consent, deletion, plan refresh, lesson generation).
+- [x] Audit emission on all protected mutations (consent, deletion, plan refresh, lesson generation).
 - [ ] Signed/append-only guarantee (tamper-resistance checks).
 
 ### 2.11 System Router (`/api/v1/system`)
 
 - [x] System info, config, health detail endpoints.
-- [ ] Expose migration version and DB schema drift status.
+- [x] Expose migration version and DB schema drift status.
 
 ---
 

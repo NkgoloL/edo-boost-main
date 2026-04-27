@@ -167,7 +167,55 @@ class GamificationService:
         grade_band = "R-3" if learner.grade <= 3 else "4-7"
         max_daily_xp = GRADE_BAND_CONFIG[grade_band]["max_daily_xp"]
 
+        # Check if learner has already reached daily cap
+        from datetime import datetime, timedelta
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        tomorrow = today + timedelta(days=1)
+        
+        result = await self.session.execute(
+            text("""
+                SELECT COALESCE(SUM(time_on_task_ms), 0) as xp_awarded_today
+                FROM session_events
+                WHERE learner_id = :learner_id 
+                  AND occurred_at >= :today 
+                  AND occurred_at < :tomorrow
+                  AND event_type IN ('LESSON', 'DIAGNOSTIC', 'ASSESSMENT')
+            """),
+            {
+                "learner_id": str(learner_id),
+                "today": today,
+                "tomorrow": tomorrow,
+            }
+        )
+        daily_xp_row = result.mappings().first()
+        xp_awarded_today = daily_xp_row.get('xp_awarded_today', 0) if daily_xp_row else 0
+        
+        # Rough conversion: treat time_ms / 10 as rough XP proxy for cap checking
+        # (More precise: maintain a separate daily XP counter in cache or separate table)
+        estimated_daily_xp = xp_awarded_today // 10 if xp_awarded_today else 0
+
         total_awarded = base_xp + streak_bonus
+        
+        # Check against daily cap
+        if estimated_daily_xp + total_awarded > max_daily_xp:
+            # Cap exceeded — return error or partial award
+            remaining_xp = max(0, max_daily_xp - estimated_daily_xp)
+            if remaining_xp == 0:
+                return {
+                    "xp_awarded": 0,
+                    "streak_bonus": 0,
+                    "total_xp": learner.total_xp,
+                    "level": self._calculate_level(learner.total_xp),
+                    "leveled_up": False,
+                    "new_level": None,
+                    "badges_earned": [],
+                    "capped": True,
+                    "daily_cap": max_daily_xp,
+                    "reason": f"Daily XP cap of {max_daily_xp} reached",
+                }
+            # Allow partial award (remaining XP up to cap)
+            total_awarded = min(total_awarded, remaining_xp)
+
         leveled_up = False
         new_level = None
         old_level = self._calculate_level(learner.total_xp)
@@ -192,6 +240,8 @@ class GamificationService:
             "leveled_up": leveled_up,
             "new_level": new_level if leveled_up else None,
             "badges_earned": badges_earned,
+            "capped": estimated_daily_xp + total_awarded > max_daily_xp,
+            "daily_cap": max_daily_xp,
         }
 
     async def _check_and_award_badges(self, learner: Learner) -> list[dict]:

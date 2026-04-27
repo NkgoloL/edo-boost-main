@@ -199,6 +199,36 @@ async def run_diagnostic(request: DiagnosticRequest):
 async def start_diagnostic(request: DiagnosticRequest):
     """Start a new interactive diagnostic session."""
     from app.api.orchestrator import OrchestratorRequest, get_orchestrator
+    
+    # Check item bank depth before session start
+    async with AsyncSessionFactory() as session:
+        result = await session.execute(
+            text("""
+                SELECT COUNT(*) as item_count
+                FROM item_bank
+                WHERE subject_code = :subject_code AND grade_level = :grade_level AND is_active = TRUE
+            """),
+            {"subject_code": request.subject_code, "grade_level": request.grade}
+        )
+        item_count_row = result.mappings().first()
+        item_count = item_count_row['item_count'] if item_count_row else 0
+    
+    # Require at least 5 items per grade/subject for adaptive testing
+    MIN_ITEMS_REQUIRED = 5
+    if item_count < MIN_ITEMS_REQUIRED:
+        raise HTTPException(
+            status_code=503,
+            detail=ErrorResponse(
+                error=f"Insufficient items in bank for {request.subject_code} Grade {request.grade}",
+                code="ITEM_BANK_INSUFFICIENT",
+                details={
+                    "available_items": item_count,
+                    "required_items": MIN_ITEMS_REQUIRED,
+                    "subject_code": request.subject_code,
+                    "grade_level": request.grade
+                }
+            ).model_dump(),
+        )
  
     orch = get_orchestrator()
     result = await orch.run(
