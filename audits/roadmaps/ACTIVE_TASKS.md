@@ -28,4 +28,4 @@ Each item should be closed only when implemented, verified (tests or runtime val
 - [x] **Commits**
   - [x] Commit in small batches after each milestone (docs → backend green → generator → persistence floor)
   - [x] Implement frontend gamification and state management refactor
-
+  - [x] Sync progress to Redmine
