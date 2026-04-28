@@ -21,11 +21,17 @@ from tenacity import (
 )
 
 import httpx
+import time
 from groq import AsyncGroq
 from anthropic import AsyncAnthropic
 
 from app.api.core.config import settings
 from app.api.core.pii_patterns import PII_SCRUBBER_PATTERNS
+from app.api.core.metrics import (
+    LLM_INFERENCE_DURATION,
+    LLM_INFERENCE_TOTAL,
+    LLM_COST_TOTAL,
+)
 
 log = structlog.get_logger()
 
@@ -206,36 +212,67 @@ async def call_llm(
 
     # Check for offline mode first
     if _OFFLINE_MODE:
+        start_time = time.time()
         try:
             result = await _call_offline_inference(clean_system, clean_user, max_tokens)
+            duration = time.time() - start_time
+            LLM_INFERENCE_DURATION.labels(provider="offline", model="local").observe(duration)
+            LLM_INFERENCE_TOTAL.labels(provider="offline", model="local", status="success").inc()
             log.info("inference_gateway.success", provider="offline")
             return result
         except Exception as e:
+            LLM_INFERENCE_TOTAL.labels(provider="offline", model="local", status="error").inc()
             log.error("inference_gateway.offline_failed", error=str(e))
             # Fall through to online providers if offline fails
 
     # 1. Try Groq (primary — ultra fast)
+    start_time = time.time()
     try:
         result = await _call_groq(clean_system, clean_user, max_tokens)
+        duration = time.time() - start_time
+        LLM_INFERENCE_DURATION.labels(provider="groq", model=settings.GROQ_MODEL).observe(duration)
+        LLM_INFERENCE_TOTAL.labels(provider="groq", model=settings.GROQ_MODEL, status="success").inc()
+        # Estimate cost (approx $0.59 / 1M tokens)
+        est_cost = (max_tokens / 1000000) * 0.59
+        LLM_COST_TOTAL.labels(provider="groq", model=settings.GROQ_MODEL).inc(est_cost)
+        
         log.info("inference_gateway.success", provider="groq")
         return result
     except Exception as e:
+        LLM_INFERENCE_TOTAL.labels(provider="groq", model=settings.GROQ_MODEL, status="error").inc()
         log.warning("inference_gateway.groq_failed", error=str(e))
 
     # 2. Try Anthropic (secondary)
+    start_time = time.time()
     try:
         result = await _call_anthropic(clean_system, clean_user, max_tokens)
+        duration = time.time() - start_time
+        LLM_INFERENCE_DURATION.labels(provider="anthropic", model=settings.ANTHROPIC_MODEL).observe(duration)
+        LLM_INFERENCE_TOTAL.labels(provider="anthropic", model=settings.ANTHROPIC_MODEL, status="success").inc()
+        # Estimate cost (approx $0.25 / 1M input, $1.25 / 1M output for Haiku)
+        est_cost = (max_tokens / 1000000) * 1.25
+        LLM_COST_TOTAL.labels(provider="anthropic", model=settings.ANTHROPIC_MODEL).inc(est_cost)
+        
         log.info("inference_gateway.success", provider="anthropic")
         return result
     except Exception as e:
+        LLM_INFERENCE_TOTAL.labels(provider="anthropic", model=settings.ANTHROPIC_MODEL, status="error").inc()
         log.warning("inference_gateway.anthropic_failed", error=str(e))
 
     # 3. Try HuggingFace (fallback)
+    start_time = time.time()
     try:
         result = await _call_huggingface(clean_system, clean_user, max_tokens)
+        duration = time.time() - start_time
+        LLM_INFERENCE_DURATION.labels(provider="huggingface", model=settings.HUGGINGFACE_MODEL).observe(duration)
+        LLM_INFERENCE_TOTAL.labels(provider="huggingface", model=settings.HUGGINGFACE_MODEL, status="success").inc()
+        # HF Inference API is often free/pro-tier, but let's attribute a nominal cost
+        LLM_COST_TOTAL.labels(provider="huggingface", model=settings.HUGGINGFACE_MODEL).inc(0.0001)
+        
         log.info("inference_gateway.success", provider="huggingface")
         return result
     except Exception as e:
+        LLM_INFERENCE_TOTAL.labels(provider="huggingface", model=settings.HUGGINGFACE_MODEL, status="error").inc()
         log.error("inference_gateway.all_providers_failed", error=str(e))
         raise RuntimeError("All LLM providers failed") from e
 

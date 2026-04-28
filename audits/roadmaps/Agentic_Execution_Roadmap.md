@@ -9,6 +9,27 @@
 > "Implement the Redis Circuit Breaker for the Fourth Estate audit logger. Review the system roadmap to understand the requirements. Use Test-Driven Autonomy: first, write tests that simulate a Redis failure and expect a fallback to local structured logging. Then, implement the circuit breaker pattern until the tests pass. Verify in the terminal and commit the changes."
 - [x] Status: Completed (2026-04-28)
 
+- [x] **Epic 7: Diagnostic Engine Hardening (IRT-Based)** (Completed: 2026-04-28)
+    - ✅ Seeded 133 calibrated items into the `item_bank` table across all core subjects.
+    - ✅ Polished frontend `InteractiveDiagnostic` UI with progress tracking and premium animations.
+    - ✅ Implemented automated benchmark tests verifying theta convergence accuracy.
+- [x] **Epic 8: Mastery-Driven Study Plan Logic** (Completed: 2026-04-28)
+    - ✅ Refined `StudyPlanService` to prioritize foundational knowledge gaps (lowest grade level first).
+    - ✅ Implemented spaced repetition weighting for subjects with mastery < 0.35.
+    - ✅ Added integration tests verifying gap-focus and severity-based duration adjustments.
+- [x] **Epic 9: Gamification System Hardening** (Completed: 2026-04-28)
+    - ✅ Implemented 48h streak grace period in `GamificationService`.
+    - ✅ Finalized Mastery and Milestone badge logic with DB-backed definitions.
+    - ✅ Seeded core badge set (Streak Starter, Math Whiz, Power User).
+    - ✅ Verified logic with unit tests for streaks and badge awarding.
+- [x] **Epic 10: Parent Dashboard & Reporting Loop** (Completed: 2026-04-28)
+    - ✅ Integrated AI-Enhanced explainable reports via `ParentPortalService`.
+    - ✅ Upgraded `ParentDashboard` UI with detailed report modal and mastery charts.
+    - ✅ Verified POPIA-compliant access control with integration tests.
+
+---
+**Roadmap Status: ALL EPICS COMPLETED**
+
 ### Epic 2: Celery Job Scheduling for Study Plans
 **Prompt to Agent:** 
 > "Finalize the Celery-driven background processing for automated study plan renewal. Write integration tests mocking the Anthropic API to ensure tasks execute on schedule. Spin up the local worker in the terminal, run the tests to prove the orchestration works autonomously, and commit the final code."

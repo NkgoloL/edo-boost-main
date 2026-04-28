@@ -1,0 +1,5 @@
+Create a one-week study plan for {grade_name}.
+Knowledge Gaps: {gaps_summary}
+Current Mastery: {subjects_mastery_str}
+
+Return JSON with: week_start, gap_ratio, week_focus, schedule (list of day, subject_code, topic, minutes).

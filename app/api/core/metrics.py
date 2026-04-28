@@ -88,6 +88,32 @@ try:
         ["endpoint", "status_code"],
     )
 
+    # ── LLM Inference & Governance ───────────────────────────────────────────
+    LLM_INFERENCE_DURATION = Histogram(
+        "eduboost_llm_inference_duration_seconds",
+        "Latency of LLM inference requests",
+        ["provider", "model"],
+        buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0],
+    )
+
+    LLM_INFERENCE_TOTAL = Counter(
+        "eduboost_llm_inference_total",
+        "Total LLM inference requests",
+        ["provider", "model", "status"],  # status: success, error
+    )
+
+    LLM_COST_TOTAL = Counter(
+        "eduboost_llm_cost_usd_total",
+        "Estimated total cost of LLM inference in USD",
+        ["provider", "model"],
+    )
+
+    LLM_SCHEMA_VALIDATION_ERRORS = Counter(
+        "eduboost_llm_schema_validation_errors_total",
+        "Total failures of LLM output to match Pydantic schema",
+        ["template_type"],
+    )
+
     METRICS_AVAILABLE = True
 
 except ImportError:
@@ -129,5 +155,9 @@ except ImportError:
     AUTH_EVENTS_TOTAL = _NoOp()
     ACTIVE_LEARNER_SESSIONS = _NoOp()
     API_ERRORS_TOTAL = _NoOp()
+    LLM_INFERENCE_DURATION = _NoOp()
+    LLM_INFERENCE_TOTAL = _NoOp()
+    LLM_COST_TOTAL = _NoOp()
+    LLM_SCHEMA_VALIDATION_ERRORS = _NoOp()
 
     METRICS_AVAILABLE = False

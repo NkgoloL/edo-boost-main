@@ -4,3 +4,10 @@
 __pycache__/
 *.py[cod]
 coverage_html/
+node_modules/
+.next/
+*.db
+*.sqlite
+.env
+.env.*
+!.env.example

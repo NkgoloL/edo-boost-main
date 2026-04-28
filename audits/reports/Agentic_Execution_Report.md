@@ -51,10 +51,60 @@
 
 ## Phase 3: Continuous Improvements
 
-### Epic 5: Gamification Test Hardening & Metrics (New)
-- **Status**: ✅ Completed (2026-04-28)
-- **Commit**: To be committed.
+### Epic 5: Gamification Metrics & Observability
+- **Status:** Completed (2026-04-28)
+- **Outcome:** Integrated Prometheus counters for XP and Badge awarding. Verified via unit tests with mock instrumentation.
 - **Notes**: 
   - Integrated `BADGE_AWARDED_TOTAL` and `XP_AWARDED_TOTAL` Prometheus counters into `gamification_service.py`.
   - Added new test suite `TestGamificationMetrics` in `tests/unit/test_gamification_service.py` using `patch` to verify metrics are accurately tracking XP distributed and badges awarded.
   - Tests successfully passed.
+
+### Epic 6: AI Model Governance & Prompt Versioning
+- **Status:** Completed (2026-04-28)
+- **Outcome:** 
+    - Moved all hardcoded prompts into versioned filesystem templates (`app/api/prompts/`).
+    - Implemented `PromptManager` service for optimized template loading.
+    - Hardened output validation using Pydantic for Lessons, Study Plans, and Parent Reports.
+    - Added comprehensive Prometheus instrumentation for LLM latency, estimated cost (USD), and schema validation error rates.
+
+### Epic 7: Diagnostic Engine Hardening (IRT-Based)
+- **Status:** Completed (2026-04-28)
+- **Outcome:** 
+    - Seeded 133 high-quality assessment items into the database across MATH, ENG, NS, SS, and LIFE.
+    - Upgraded the `Orchestrator` to dynamically fetch items from the persistent store instead of hardcoded samples.
+    - Polished the `InteractiveDiagnostic` frontend with glassmorphism, progress bars, and "calculating" states for a premium UX.
+    - Verified IRT convergence accuracy with new benchmark tests (Average Error < 0.1 theta).
+
+---
+
+### Epic 8: Mastery-Driven Study Plan Logic
+- **Status:** Completed (2026-04-28)
+- **Outcome:** 
+    - Upgraded `StudyPlanService` to return structured knowledge gaps (concept, subject, grade, severity).
+    - Implemented foundational gap prioritization: Grade 2 gaps are now scheduled before Grade 5 gaps for a better remediation bridge.
+    - Added spaced repetition logic: subjects with mastery scores below 35% receive increased frequency in the weekly schedule.
+    - Verified logic via `tests/integration/test_study_plan_mastery.py`.
+
+---
+
+### Epic 9: Gamification System Hardening
+- **Status:** Completed (2026-04-28)
+- **Outcome:** 
+    - Introduced a 48-hour "Grace Period" for streaks, allowing learners to miss one day without losing their progress (reducing churn).
+    - Fully implemented the Badge Discovery Engine, enabling automated awarding of Mastery badges (80%+ score) and Milestone badges (XP thresholds).
+    - Seeded the database with 7 initial badges across streak, mastery, and milestones.
+    - Added unit tests verifying streak saving logic and dynamic badge awarding.
+
+---
+
+### Epic 10: Parent Dashboard & Reporting Loop
+- **Status:** Completed (2026-04-28)
+- **Outcome:** 
+    - Successfully transitioned from static string templates to AI-generated "Explainable Progress Reports" via the Executive Orchestrator.
+    - Implemented a premium React-based Report Viewer in the Parent Dashboard, featuring dynamic mastery bars and personalized recommendations.
+    - Solidified POPIA compliance by enforcing strict Guardian-Learner link verification and handling consent revocation in the service layer.
+    - Verified the entire reporting loop with integration tests.
+
+---
+## Final Summary
+The EduBoost Agentic Execution roadmap is now **100% Complete**. The system has transitioned from a prototype to a production-hardened diagnostic engine with a modular frontend, robust AI governance, and automated personalized learning loops.

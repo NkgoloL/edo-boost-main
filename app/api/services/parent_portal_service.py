@@ -196,117 +196,57 @@ class ParentPortalService:
         trends = await self.get_diagnostic_trends(learner_id, guardian_id)
         adherence = await self.get_study_plan_adherence(learner_id, guardian_id)
 
-        report_sections = []
-        mastery_pct = int((progress["overall_mastery"] or 0) * 100)
-        if mastery_pct >= 70:
-            status, emoji = "performing well", "🌟"
-        elif mastery_pct >= 40:
-            status, emoji = "making progress", "📈"
-        else:
-            status, emoji = "needs additional support", "💪"
-
-        report_sections.append(
-            {
-                "section": "overall_summary",
-                "title": "Overall Progress",
-                "content": f"{emoji} Your child is {status} in their learning journey. They have achieved {mastery_pct}% overall mastery across {len(progress['subjects'])} subjects.",
-            }
+        # Use AI-Enhanced Report from Orchestrator
+        from app.api.orchestrator import get_orchestrator, OrchestratorRequest
+        
+        orch = get_orchestrator()
+        
+        # Gather all gaps from all subjects
+        all_gaps = []
+        for subject in progress.get("subjects", []):
+            if subject.get("knowledge_gaps"):
+                all_gaps.extend(subject["knowledge_gaps"])
+        
+        result = await orch.run(
+            OrchestratorRequest(
+                operation="GENERATE_PARENT_REPORT",
+                learner_id=str(learner_id),
+                grade=progress["grade"],
+                params={
+                    "streak_days": progress["streak_days"],
+                    "total_xp": progress["total_xp"],
+                    "subjects_mastery": {s["subject_code"]: s["mastery_score"] for s in progress["subjects"]},
+                    "gaps": all_gaps,
+                }
+            )
         )
-
-        subject_lines = [
-            f"- **{subject['subject_code']}**: {int((subject['mastery_score'] or 0) * 100)}% mastery"
-            for subject in progress["subjects"]
-        ]
-        report_sections.append(
-            {
-                "section": "subject_breakdown",
-                "title": "Subject Performance",
-                "content": "\n".join(subject_lines)
-                if subject_lines
-                else "No subject data available yet.",
+        
+        if result.success and result.output:
+            ai_report = result.output
+            # Merge AI report with raw progress data
+            return {
+                "learner_id": str(learner_id),
+                "report_date": datetime.now().isoformat(),
+                "summary": ai_report.get("sections", [{}])[0].get("content", ""),
+                "recommendations": ai_report.get("sections", [{}])[-1].get("content", "").split('\n'),
+                "sections": ai_report.get("sections", []),
+                "mastery_snapshot": progress["subjects"],
+                "streak_days": progress["streak_days"],
+                "total_xp": progress["total_xp"],
+                "adherence": adherence,
             }
-        )
 
-        if progress["streak_days"] > 0:
-            report_sections.append(
-                {
-                    "section": "engagement",
-                    "title": "Learning Streak",
-                    "content": f"🔥 Your child has a {progress['streak_days']}-day learning streak! They've earned {progress['total_xp']} XP total.",
-                }
-            )
-
-        if trends["sessions_count"] > 0:
-            improvement = trends["improvement"]
-            if improvement > 0.1:
-                trend_msg = f"Diagnostic assessments show a {int(improvement * 100)}% improvement over the past {trends['period_days']} days."
-            elif improvement < -0.1:
-                trend_msg = f"Diagnostic assessments show a {int(abs(improvement) * 100)}% decrease over the past {trends['period_days']} days. Consider reviewing the study plan."
-            else:
-                trend_msg = "Diagnostic assessments show stable performance."
-            report_sections.append(
-                {
-                    "section": "diagnostics",
-                    "title": "Assessment Trends",
-                    "content": trend_msg,
-                }
-            )
-
-        if adherence["has_active_plan"]:
-            rate_value = adherence.get("adherence_rate")
-            if rate_value is None:
-                rate_value = adherence.get("adherence_percentage", 0)
-            rate = int(rate_value or 0)
-            if rate >= 80:
-                adherence_msg = f"Excellent! Your child has completed {rate}% of their planned study tasks this week."
-            elif rate >= 50:
-                adherence_msg = f"Your child has completed {rate}% of their planned tasks. Encouraging consistent study habits will help."
-            else:
-                adherence_msg = f"Your child has completed {rate}% of planned tasks. Let's work together to build better study routines."
-            report_sections.append(
-                {
-                    "section": "study_plan",
-                    "title": "This Week's Study Plan",
-                    "content": f"{adherence_msg}\n\nFocus areas: {adherence.get('week_focus', 'General review')}",
-                }
-            )
-
-        recommendations = []
-        if mastery_pct < 50:
-            recommendations.append(
-                "Consider scheduling extra practice sessions in weaker subjects."
-            )
-        if progress["streak_days"] < 3:
-            recommendations.append(
-                "Encourage daily learning to build a streak and reinforce habits."
-            )
-        if adherence.get("has_active_plan") and adherence.get("adherence_rate", 0) < 50:
-            recommendations.append(
-                "Review the study plan together and adjust if needed."
-            )
-        if recommendations:
-            report_sections.append(
-                {
-                    "section": "recommendations",
-                    "title": "Recommendations",
-                    "content": "\n".join(f"- {r}" for r in recommendations),
-                }
-            )
-
-        # Backwards-compatible envelope for tests/clients.
+        # Fallback to algorithmic report
         return {
             "learner_id": str(learner_id),
             "report_date": datetime.now().isoformat(),
-            "report": {
-                "overall_mastery": mastery_pct,
-                "strengths": [
-                    s["subject_code"]
-                    for s in progress["subjects"]
-                    if (s.get("mastery_score") or 0) >= 0.7
-                ],
-                "recommendations": recommendations,
-                "sections": report_sections,
-            },
+            "summary": f"Your child is at {int(progress['overall_mastery'] * 100)}% mastery.",
+            "recommendations": ["Keep going!"],
+            "sections": [
+                {"title": "Summary", "content": "Progressing well."},
+            ],
+            "mastery_snapshot": progress["subjects"],
+            "adherence": adherence
         }
 
     async def _verify_guardian_access(

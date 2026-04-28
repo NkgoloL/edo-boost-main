@@ -14,7 +14,7 @@ import asyncio
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.models.db_models import Badge, Learner, LearnerBadge
+from app.api.models.db_models import Badge, Learner, LearnerBadge, SubjectMastery
 from app.api.core.metrics import BADGE_AWARDED_TOTAL, XP_AWARDED_TOTAL
 
 XP_CONFIG = {
@@ -348,15 +348,28 @@ class GamificationService:
             earned = False
             if badge.badge_type == "streak" and badge.threshold:
                 earned = learner.streak_days >= badge.threshold
-            elif badge.badge_type == "mastery":
-                # Mastery badges need concept count — leave for future metric tracking
-                pass
-            elif badge.badge_type == "milestone":
-                # Milestone badges need lesson count — leave for future metric tracking
-                pass
-            elif badge.badge_type == "assessment":
-                # Assessment badges — evaluated at attempt submission time
-                pass
+            elif badge.badge_type == "mastery" and badge.threshold:
+                # Check SubjectMastery for the corresponding subject
+                subject = badge.badge_key.split('_')[-1].upper()
+                result_m = await self.session.execute(
+                    select(SubjectMastery.mastery_score)
+                    .where(SubjectMastery.learner_id == learner.learner_id, 
+                           SubjectMastery.subject_code == subject)
+                )
+                score = result_m.scalar() or 0
+                earned = score >= badge.threshold
+            elif badge.badge_type == "milestone" and badge.threshold:
+                # XP milestones
+                if "xp" in badge.badge_key:
+                    earned = learner.total_xp >= badge.threshold
+                # Topic milestones
+                elif "topic" in badge.badge_key:
+                    result_t = await self.session.execute(
+                        text("SELECT COUNT(*) FROM session_events WHERE learner_id = :lid AND event_type = 'LESSON'"),
+                        {"lid": str(learner.learner_id)}
+                    )
+                    count = result_t.scalar() or 0
+                    earned = count >= badge.threshold
 
             if earned:
                 awarded = await self._award_existing_badge(learner.learner_id, badge)
@@ -443,15 +456,20 @@ class GamificationService:
         streak_broken = False
         if last_active:
             days_diff = (today.date() - last_active.date()).days
-            if days_diff > 1:
-                # Streak broken - more than 1 day gap
+            if days_diff == 1:
+                # Standard continue
+                learner.streak_days += 1
+            elif days_diff == 2:
+                # Grace period: Allow 1 missed day (48h gap) but don't increment as much?
+                # Actually, many apps count this as "streak saved"
+                learner.streak_days += 1 
+                streak_broken = False
+            elif days_diff > 2:
+                # Streak broken
                 learner.streak_days = 1
                 streak_broken = True
-            elif days_diff == 1:
-                # Continue streak
-                learner.streak_days += 1
             elif days_diff == 0:
-                # Same day - no change
+                # Already active today
                 pass
         else:
             # First activity

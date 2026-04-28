@@ -16,6 +16,8 @@ from sqlalchemy import text
 from app.api.core.config import settings
 from app.api.core.database import AsyncSessionFactory
 from app.api.services.inference_gateway import call_llm, parse_json_response
+from app.api.services.prompt_manager import PromptManager
+from app.api.core.metrics import LLM_SCHEMA_VALIDATION_ERRORS
 import structlog
 
 log = structlog.get_logger()
@@ -178,33 +180,66 @@ class GeneratedLesson(BaseModel):
     badge: Optional[str] = None
 
 
+class StudyPlanItem(BaseModel):
+    day: str
+    subject_code: str
+    topic: str
+    minutes: int
+
+
+class GeneratedStudyPlan(BaseModel):
+    week_start: str
+    gap_ratio: float
+    week_focus: str
+    schedule: list[StudyPlanItem]
+
+
+class ParentReportSection(BaseModel):
+    section: str
+    title: str
+    content: str
+
+
+class GeneratedParentReport(BaseModel):
+    report_date: str
+    grade: int
+    streak_days: int
+    total_xp: int
+    sections: list[ParentReportSection]
+
+
 async def build_lesson_prompts(params: LessonParams) -> Tuple[str, str]:
     """Build LLM prompts from anonymised lesson parameters only."""
     grade_name = GRADES.get(params.grade, "Grade 3")
     sa_theme = params.sa_theme or random.choice(SA_THEMES)
     style = params.learning_style_primary
 
-    # Test mode: avoid DB dependencies (prompt_templates seeding) and keep tests deterministic.
+    # Test mode: avoid complex templating in deterministic tests
     if settings.APP_ENV == "test":
-        system_prompt = (
-            "You are EduBoost, a CAPS-aligned tutor. "
-            "Return ONLY valid JSON matching the lesson schema."
-        )
-        user_prompt = json.dumps(
-            {
-                "grade": grade_name,
-                "subject_code": params.subject_code,
-                "subject_label": params.subject_label,
-                "topic": params.topic,
-                "home_language": params.home_language,
-                "learning_style_primary": style,
-                "sa_theme": sa_theme,
-                "mastery_prior": params.mastery_prior,
-                "has_gap": params.has_gap,
-                "gap_grade": params.gap_grade,
-            }
-        )
+        system_prompt = "You are EduBoost, a CAPS tutor. Return JSON."
+        user_prompt = json.dumps(params.model_dump())
         return system_prompt, user_prompt
+
+    # Load from PromptManager (filesystem)
+    try:
+        system_prompt = PromptManager.get_template("lesson_generation", "system")
+        user_prompt_template = PromptManager.get_template("lesson_generation", "user")
+    except Exception as e:
+        log.warning("lesson_service.prompt_file_missing", error=str(e))
+        # Fallback to DB
+        async with AsyncSessionFactory() as session:
+            result = await session.execute(
+                text(
+                    "SELECT system_prompt, user_prompt_template FROM prompt_templates WHERE template_type = 'lesson_generation' AND is_active = TRUE LIMIT 1"
+                )
+            )
+            row = result.mappings().first()
+
+        if not row:
+            raise ValueError("Lesson generation prompt template not found in DB or files")
+        
+        system_prompt = row["system_prompt"]
+        user_prompt_template = row["user_prompt_template"]
 
     difficulty_note = ""
     if params.has_gap and params.gap_grade is not None:
@@ -214,14 +249,6 @@ async def build_lesson_prompts(params: LessonParams) -> Tuple[str, str]:
             f"Start from {gap_name} fundamentals before progressing to {grade_name} content."
         )
 
-    # Fetch templates from DB
-    async with AsyncSessionFactory() as session:
-        result = await session.execute(
-            text(
-                "SELECT system_prompt, user_prompt_template FROM prompt_templates WHERE template_type = 'lesson_generation' AND is_active = TRUE LIMIT 1"
-            )
-        )
-        row = result.mappings().first()
 
     if not row:
         raise ValueError("Lesson generation prompt template not found in DB")
@@ -261,6 +288,7 @@ async def generate_lesson_from_prompts(
     try:
         return GeneratedLesson.model_validate(data)
     except ValidationError as e:
+        LLM_SCHEMA_VALIDATION_ERRORS.labels(template_type="lesson_generation").inc()
         log.warning("lesson_service.schema_mismatch", errors=e.errors())
         raise LLMOutputValidationError(
             "LLM output failed lesson schema validation",
@@ -341,22 +369,27 @@ async def generate_study_plan(
         else "none detected"
     )
 
-    # Fetch templates from DB
-    async with AsyncSessionFactory() as session:
-        result = await session.execute(
-            text(
-                "SELECT system_prompt, user_prompt_template FROM prompt_templates WHERE template_type = 'study_plan' AND is_active = TRUE LIMIT 1"
+    # Load from PromptManager
+    try:
+        system = PromptManager.get_template("study_plan", "system")
+        user_template = PromptManager.get_template("study_plan", "user")
+    except Exception as e:
+        log.warning("lesson_service.study_plan_file_missing", error=str(e))
+        # Fallback to DB
+        async with AsyncSessionFactory() as session:
+            result = await session.execute(
+                text(
+                    "SELECT system_prompt, user_prompt_template FROM prompt_templates WHERE template_type = 'study_plan' AND is_active = TRUE LIMIT 1"
+                )
             )
-        )
-        row = result.mappings().first()
+            row = result.mappings().first()
 
-    if not row:
-        log.warning("lesson_service.template_missing", type="study_plan")
-        system = "You are a CAPS curriculum planner. Create personalised weekly study plans. Return ONLY valid JSON."
-        user_template = "Create a one-week study plan for Grade {grade_name}. Gaps: {gaps_summary}. Mastery: {subjects_mastery_str}."
-    else:
-        system = row["system_prompt"]
-        user_template = row["user_prompt_template"]
+        if not row:
+            system = "You are a CAPS curriculum planner. Create personalised weekly study plans. Return ONLY valid JSON."
+            user_template = "Create a one-week study plan for Grade {grade_name}. Gaps: {gaps_summary}. Mastery: {subjects_mastery_str}."
+        else:
+            system = row["system_prompt"]
+            user_template = row["user_prompt_template"]
 
     subjects_mastery_str = ", ".join(
         [f"{k}: {v}%" for k, v in subjects_mastery.items()]
@@ -368,7 +401,14 @@ async def generate_study_plan(
     )
 
     text_resp = await call_llm(system, user, max_tokens=900)
-    return parse_json_response(text_resp)
+    data = parse_json_response(text_resp)
+    try:
+        return GeneratedStudyPlan.model_validate(data).model_dump()
+    except ValidationError as e:
+        LLM_SCHEMA_VALIDATION_ERRORS.labels(template_type="study_plan").inc()
+        log.warning("lesson_service.study_plan_schema_mismatch", errors=e.errors())
+        # Return unvalidated data as fallback but log error
+        return data
 
 
 async def generate_parent_report(
@@ -404,22 +444,27 @@ async def generate_parent_report(
 
     grade_name = GRADES.get(grade, "Grade 3")
 
-    # Fetch templates from DB
-    async with AsyncSessionFactory() as session:
-        result = await session.execute(
-            text(
-                "SELECT system_prompt, user_prompt_template FROM prompt_templates WHERE template_type = 'parent_report' AND is_active = TRUE LIMIT 1"
+    # Load from PromptManager
+    try:
+        system = PromptManager.get_template("parent_report", "system")
+        user_template = PromptManager.get_template("parent_report", "user")
+    except Exception as e:
+        log.warning("lesson_service.parent_report_file_missing", error=str(e))
+        # Fallback to DB
+        async with AsyncSessionFactory() as session:
+            result = await session.execute(
+                text(
+                    "SELECT system_prompt, user_prompt_template FROM prompt_templates WHERE template_type = 'parent_report' AND is_active = TRUE LIMIT 1"
+                )
             )
-        )
-        row = result.mappings().first()
+            row = result.mappings().first()
 
-    if not row:
-        log.warning("lesson_service.template_missing", type="parent_report")
-        system = "You are an educational progress report generator for South African parents. Be warm, encouraging, and use SA cultural references. Return only JSON."
-        user_template = "Generate a parent progress report for Grade {grade_name}. Streak: {streak_days}, XP: {total_xp}, Mastery: {subjects_mastery_str}, Gaps: {gaps_str}."
-    else:
-        system = row["system_prompt"]
-        user_template = row["user_prompt_template"]
+        if not row:
+            system = "You are an educational progress report generator for South African parents. Be warm, encouraging, and use SA cultural references. Return only JSON."
+            user_template = "Generate a parent progress report for Grade {grade_name}. Streak: {streak_days}, XP: {total_xp}, Mastery: {subjects_mastery_str}, Gaps: {gaps_str}."
+        else:
+            system = row["system_prompt"]
+            user_template = row["user_prompt_template"]
 
     subjects_mastery_str = ", ".join(
         [f"{k}: {v}%" for k, v in subjects_mastery.items()]
@@ -435,4 +480,10 @@ async def generate_parent_report(
     )
 
     text_resp = await call_llm(system, user, max_tokens=700)
-    return parse_json_response(text_resp)
+    data = parse_json_response(text_resp)
+    try:
+        return GeneratedParentReport.model_validate(data).model_dump()
+    except ValidationError as e:
+        LLM_SCHEMA_VALIDATION_ERRORS.labels(template_type="parent_report").inc()
+        log.warning("lesson_service.parent_report_schema_mismatch", errors=e.errors())
+        return data

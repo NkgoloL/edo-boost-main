@@ -1,0 +1,7 @@
+Generate a parent progress report for {grade_name}.
+Activity Streak: {streak_days} days
+Total XP: {total_xp}
+Mastery Levels: {subjects_mastery_str}
+Identified Gaps: {gaps_str}
+
+Return JSON with: report_date, grade, streak_days, total_xp, sections (list of section, title, content).

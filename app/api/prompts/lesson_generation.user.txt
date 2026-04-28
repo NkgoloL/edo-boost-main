@@ -1,0 +1,10 @@
+Create an {modality} lesson for {grade} on the topic: {topic}.
+Subject: {subject_label} ({subject_code})
+Home Language: {home_language}
+Learning Style: {learning_style_primary}
+Theme: {sa_theme}
+Mastery Prior: {mastery_prior}
+{gap_instruction}
+
+The lesson should take approximately {duration_minutes} minutes.
+Return JSON with: title, story_hook, visual_anchor, steps (list of 3-5 steps), practice (list of 2-3 questions), try_it (optional activity), xp, badge.

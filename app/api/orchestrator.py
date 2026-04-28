@@ -167,7 +167,9 @@ class Orchestrator:
             select_next_item,
             should_stop,
             update_theta_mle,
+            Item,
         )
+        from app.api.core.database import AsyncSessionFactory
 
         action, fe, j, _profiler, profile = await self._review_action(
             ActionType.RUN_DIAGNOSTIC, req, t0
@@ -184,17 +186,47 @@ class Orchestrator:
                 ether_archetype=profile.archetype.value,
                 latency_ms=int((time.perf_counter() - t0) * 1000),
             )
+        # Fetch items from DB
+        async with AsyncSessionFactory() as session_db:
+            result_db = await session_db.execute(
+                text("SELECT * FROM item_bank WHERE subject_code = :sub AND is_active = TRUE"),
+                {"sub": req.params["subject_code"]}
+            )
+            item_rows = result_db.mappings().all()
+            db_items = [
+                Item(
+                    item_id=r["item_id"],
+                    subject=SubjectCode(r["subject_code"]),
+                    grade=r["grade_level"],
+                    concept_code=r["concept_code"],
+                    difficulty_b=r["difficulty"],
+                    discrimination_a=r["discrimination"],
+                    question_text=r["content"],
+                    options=json.loads(r["options"]) if isinstance(r["options"], str) else r["options"],
+                    correct_index=0, # Need to find index of correct_answer in options
+                )
+                for r in item_rows
+            ]
+            # Fix correct_index
+            for i, item_obj in enumerate(db_items):
+                try:
+                    db_items[i].correct_index = item_obj.options.index(item_rows[i]["correct_answer"])
+                except ValueError:
+                    db_items[i].correct_index = 0
+
         subject = SubjectCode(req.params["subject_code"])
         session = AssessmentSession(learner_grade=req.grade, subject=subject)
         administered: set = set()
         max_questions = int(req.params.get("max_questions", 10))
+        items_dict = {i.item_id: i for i in db_items}
         for _ in range(max_questions):
             if should_stop(session, max_questions=max_questions):
                 break
-            item = select_next_item(session, SAMPLE_ITEMS, administered)
+            item = select_next_item(session, db_items, administered)
             if item is None:
                 break
-            is_correct = random.random() < 0.6
+            # Use the correct answer for simulation or random
+            is_correct = random.random() < 0.7 # Simulate slightly better than random
             session.responses.append(
                 Response(
                     item_id=item.item_id,
@@ -203,7 +235,7 @@ class Orchestrator:
                 )
             )
             administered.add(item.item_id)
-            session.theta, session.sem = update_theta_mle(session.responses, ITEM_BANK)
+            session.theta, session.sem = update_theta_mle(session.responses, items_dict)
             if check_gap_trigger(session):
                 activate_gap_probe(session)
         gap_report = build_gap_report(session)
@@ -338,10 +370,11 @@ class Orchestrator:
     ) -> OperationResult:
         from app.api.ml.irt_engine import (
             AssessmentSession,
-            SAMPLE_ITEMS,
             SubjectCode,
             select_next_item,
+            Item,
         )
+        from app.api.core.database import AsyncSessionFactory
 
         action, fe, j, _profiler, profile = await self._review_action(
             ActionType.START_DIAGNOSTIC, req, t0
@@ -359,10 +392,32 @@ class Orchestrator:
                 latency_ms=int((time.perf_counter() - t0) * 1000),
             )
 
+        # Fetch items from DB
+        async with AsyncSessionFactory() as session_db:
+            result_db = await session_db.execute(
+                text("SELECT * FROM item_bank WHERE subject_code = :sub AND grade_level = :grade AND is_active = TRUE"),
+                {"sub": req.params["subject_code"], "grade": req.grade}
+            )
+            item_rows = result_db.mappings().all()
+            db_items = [
+                Item(
+                    item_id=r["item_id"],
+                    subject=SubjectCode(r["subject_code"]),
+                    grade=r["grade_level"],
+                    concept_code=r["concept_code"],
+                    difficulty_b=r["difficulty"],
+                    discrimination_a=r["discrimination"],
+                    question_text=r["content"],
+                    options=json.loads(r["options"]) if isinstance(r["options"], str) else r["options"],
+                    correct_index=0,
+                )
+                for r in item_rows
+            ]
+
         subject = SubjectCode(req.params["subject_code"])
         session_obj = AssessmentSession(learner_grade=req.grade, subject=subject)
 
-        item = select_next_item(session_obj, SAMPLE_ITEMS, set())
+        item = select_next_item(session_obj, db_items, set())
 
         await fe.publish_domain_event(
             EventType.ACTION_SUBMITTED, action, {"subject": subject.value}
@@ -396,7 +451,9 @@ class Orchestrator:
             select_next_item,
             should_stop,
             update_theta_mle,
+            Item,
         )
+        from app.api.core.database import AsyncSessionFactory
 
         action, fe, j, _profiler, profile = await self._review_action(
             ActionType.SUBMIT_DIAGNOSTIC_RESPONSE, req, t0
@@ -428,6 +485,29 @@ class Orchestrator:
         session_obj.gap_probe_active = params.get("gap_probe_active", False)
         session_obj.current_grade = params.get("current_grade", req.grade)
 
+        # Fetch all items for this subject to build the bank context
+        async with AsyncSessionFactory() as session_db:
+            result_db = await session_db.execute(
+                text("SELECT * FROM item_bank WHERE subject_code = :sub AND is_active = TRUE"),
+                {"sub": params["subject_code"]}
+            )
+            item_rows = result_db.mappings().all()
+            db_items = [
+                Item(
+                    item_id=r["item_id"],
+                    subject=SubjectCode(r["subject_code"]),
+                    grade=r["grade_level"],
+                    concept_code=r["concept_code"],
+                    difficulty_b=r["difficulty"],
+                    discrimination_a=r["discrimination"],
+                    question_text=r["content"],
+                    options=json.loads(r["options"]) if isinstance(r["options"], str) else r["options"],
+                    correct_index=0,
+                )
+                for r in item_rows
+            ]
+            items_dict = {i.item_id: i for i in db_items}
+
         new_resp = Response(
             item_id=params["item_id"],
             is_correct=params["is_correct"],
@@ -436,7 +516,7 @@ class Orchestrator:
         session_obj.responses.append(new_resp)
 
         session_obj.theta, session_obj.sem = update_theta_mle(
-            session_obj.responses, ITEM_BANK
+            session_obj.responses, items_dict
         )
 
         if check_gap_trigger(session_obj):
@@ -452,7 +532,7 @@ class Orchestrator:
             gap_report = build_gap_report(session_obj)
         else:
             administered = {r.item_id for r in session_obj.responses}
-            next_item = select_next_item(session_obj, SAMPLE_ITEMS, administered)
+            next_item = select_next_item(session_obj, db_items, administered)
             if not next_item:
                 is_complete = True
                 gap_report = build_gap_report(session_obj)

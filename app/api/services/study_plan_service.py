@@ -146,25 +146,29 @@ class StudyPlanService:
             for record in result.scalars().all()
         }
 
-    async def _get_knowledge_gaps(self, learner_id: UUID) -> list[str]:
+    async def _get_knowledge_gaps(self, learner_id: UUID) -> list[dict]:
         result = await self.session.execute(
             select(SubjectMastery).where(SubjectMastery.learner_id == learner_id)
         )
-        gaps: list[str] = []
+        gaps: list[dict] = []
         for record in result.scalars().all():
             if record.knowledge_gaps:
                 for gap in record.knowledge_gaps:
                     if isinstance(gap, dict):
-                        concept = (
-                            gap.get("concept")
-                            or gap.get("concept_code")
-                            or gap.get("name")
-                        )
-                        if concept:
-                            gaps.append(str(concept))
-                    else:
-                        gaps.append(str(gap))
-        return list(dict.fromkeys(gaps))
+                        gaps.append({
+                            "concept": gap.get("concept") or gap.get("concept_code") or gap.get("name"),
+                            "subject": record.subject_code,
+                            "gap_grade": gap.get("gap_grade", record.grade_level),
+                            "severity": gap.get("severity", 0.5)
+                        })
+        # Remove duplicates by concept
+        seen = set()
+        unique_gaps = []
+        for g in gaps:
+            if g["concept"] not in seen:
+                unique_gaps.append(g)
+                seen.add(g["concept"])
+        return unique_gaps
 
     def _generate_weekly_schedule(
         self,
@@ -190,7 +194,14 @@ class StudyPlanService:
         remediation_tasks = self._generate_remediation_tasks(
             knowledge_gaps, grade, grade_band
         )
+        
+        # Spaced Repetition: Inject extra tasks for critically low mastery subjects
+        critical_subjects = [s for s, m in subjects_mastery.items() if m < 0.35]
+        extra_grade_tasks = self._generate_grade_tasks(critical_subjects, grade, grade_band)
+        
         grade_tasks = self._generate_grade_tasks(focus_subjects, grade, grade_band)
+        # Mix in extra tasks for spaced repetition
+        grade_tasks = extra_grade_tasks + grade_tasks
 
         target_remediation = (
             min(
@@ -246,22 +257,32 @@ class StudyPlanService:
         return [subject for subject, _score in prioritized]
 
     def _generate_remediation_tasks(
-        self, knowledge_gaps: list[str], grade: int, grade_band: str
+        self, knowledge_gaps: list[dict], grade: int, grade_band: str
     ) -> list[dict]:
         tasks = []
-        for gap in knowledge_gaps[:5]:
-            subject = self._concept_to_subject(gap)
+        # Prioritize foundational gaps (lowest grade first) and high severity
+        sorted_gaps = sorted(
+            knowledge_gaps, 
+            key=lambda x: (x.get("gap_grade", 9), -x.get("severity", 0))
+        )
+        
+        for gap_obj in sorted_gaps[:6]:
+            concept = gap_obj["concept"]
+            subject = gap_obj.get("subject") or self._concept_to_subject(concept)
+            severity = gap_obj.get("severity", 0.5)
+            
             tasks.append(
                 {
                     "task_id": str(uuid.uuid4()),
                     "type": "remediation",
                     "subject": subject,
-                    "concept": gap,
-                    "grade": grade,
-                    "title": f"Review: {gap.replace('_', ' ').title()}",
-                    "duration_minutes": 20,
-                    "difficulty": "adaptive",
+                    "concept": concept,
+                    "grade": gap_obj.get("gap_grade", grade),
+                    "title": f"Bridge Foundations: {concept.replace('_', ' ').title()}",
+                    "duration_minutes": 20 if severity < 0.7 else 30,
+                    "difficulty": "remedial",
                     "is_gap_focus": True,
+                    "severity": severity
                 }
             )
         return tasks
@@ -323,13 +344,19 @@ class StudyPlanService:
         return "MATH"
 
     def _determine_week_focus(
-        self, knowledge_gaps: list[str], subjects_mastery: dict[str, float]
+        self, knowledge_gaps: list[dict], subjects_mastery: dict[str, float]
     ) -> str:
         if knowledge_gaps:
-            first_gap = knowledge_gaps[0]
-            subject = self._concept_to_subject(first_gap)
+            # Sort as we do for tasks
+            sorted_gaps = sorted(
+                knowledge_gaps, 
+                key=lambda x: (x.get("gap_grade", 9), -x.get("severity", 0))
+            )
+            top_gap = sorted_gaps[0]
+            concept = top_gap["concept"]
+            subject = top_gap.get("subject") or self._concept_to_subject(concept)
             return (
-                f"Focus on {subject}: {first_gap.replace('_', ' ').title()} remediation"
+                f"Foundational Bridge: Mastering {subject} {concept.replace('_', ' ').title()}"
             )
         if subjects_mastery:
             weakest = min(

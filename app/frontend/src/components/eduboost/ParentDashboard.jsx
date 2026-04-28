@@ -13,6 +13,8 @@ export function ParentDashboard({ onBack }) {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkId, setLinkId] = useState("");
   const [linking, setLinking] = useState(false);
+  const [activeReport, setActiveReport] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   useEffect(() => {
     fetchLinkedLearners();
@@ -46,11 +48,15 @@ export function ParentDashboard({ onBack }) {
   };
 
   const handleGenerateReport = async (learnerId) => {
+    setLoading(true);
     try {
       const report = await ParentService.getReport(learnerId);
-      alert("Summary: " + report.summary);
+      setActiveReport(report);
+      setShowReportModal(true);
     } catch (err) {
       alert("Failed to generate report: " + err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -167,6 +173,77 @@ export function ParentDashboard({ onBack }) {
               </div>
             </form>
           </Card>
+        </div>
+      )}
+
+      {showReportModal && activeReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-xl overflow-y-auto">
+          <div className="w-full max-w-3xl my-8">
+            <Card className="p-0 bg-[var(--surface)] border-[var(--border)] shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-[var(--blue)] to-[var(--purple)] p-8 text-white">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h2 className="text-3xl font-['Baloo_2'] font-bold">Progress Report</h2>
+                    <p className="text-blue-100 text-sm">Generated on {new Date(activeReport.report_date).toLocaleDateString()}</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowReportModal(false)}
+                    className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-all"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="bg-white/10 rounded-xl p-4 backdrop-blur-sm border border-white/10">
+                  <p className="text-lg leading-relaxed italic">"{activeReport.summary}"</p>
+                </div>
+              </div>
+
+              <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                {activeReport.sections && activeReport.sections.map((section, idx) => (
+                  <div key={idx} className="border-l-4 border-[var(--blue)] pl-6 py-2">
+                    <h4 className="text-xs font-black text-[var(--blue)] uppercase tracking-widest mb-2">{section.title}</h4>
+                    <p className="text-white/90 leading-relaxed text-sm whitespace-pre-wrap">{section.content}</p>
+                  </div>
+                ))}
+
+                <div>
+                  <h4 className="text-xs font-black text-[var(--orange)] uppercase tracking-widest mb-4">Mastery Breakdown</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {activeReport.mastery_snapshot && activeReport.mastery_snapshot.map((s, idx) => (
+                      <div key={idx} className="bg-[var(--bg)] p-4 rounded-xl border border-[var(--border)]">
+                        <div className="flex justify-between text-xs mb-2">
+                          <span className="font-bold text-white">{s.subject_code}</span>
+                          <span className="text-[var(--gold)]">{Math.round(s.mastery_score * 100)}%</span>
+                        </div>
+                        <div className="h-1.5 w-full bg-[var(--surface2)] rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-[var(--gold)]" 
+                            style={{ width: `${s.mastery_score * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-[var(--blue)]/10 p-6 rounded-2xl border border-[var(--blue)]/20">
+                  <h4 className="text-xs font-black text-[var(--blue)] uppercase tracking-widest mb-4">Recommendations</h4>
+                  <ul className="space-y-3">
+                    {activeReport.recommendations && activeReport.recommendations.map((rec, idx) => (
+                      <li key={idx} className="flex gap-3 text-sm text-blue-100">
+                        <span className="text-[var(--blue)]">➔</span>
+                        <span>{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-[var(--border)] bg-[var(--surface2)]/50 flex justify-end">
+                <Button onClick={() => setShowReportModal(false)}>Close Report</Button>
+              </div>
+            </Card>
+          </div>
         </div>
       )}
     </div>
