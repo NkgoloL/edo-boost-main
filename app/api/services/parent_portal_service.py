@@ -224,9 +224,7 @@ class ParentPortalService:
         if result.success and result.output:
             ai_report = result.output
             # Merge AI report with raw progress data
-            return {
-                "learner_id": str(learner_id),
-                "report_date": datetime.now().isoformat(),
+            report_payload = {
                 "summary": ai_report.get("sections", [{}])[0].get("content", ""),
                 "recommendations": ai_report.get("sections", [{}])[-1].get("content", "").split('\n'),
                 "sections": ai_report.get("sections", []),
@@ -235,18 +233,37 @@ class ParentPortalService:
                 "total_xp": progress["total_xp"],
                 "adherence": adherence,
             }
+            # Provide backward-compatible `report` key expected by some integrations/tests
+            report_payload["overall_mastery"] = progress.get("overall_mastery")
+            report_payload["strengths"] = [s["subject_code"] for s in progress.get("subjects", []) if (s.get("mastery_score") or 0) > 0.7]
+            return {
+                "learner_id": str(learner_id),
+                "report_date": datetime.now().isoformat(),
+                "report": report_payload,
+                "summary": report_payload["summary"],
+                "recommendations": report_payload["recommendations"],
+                "sections": report_payload["sections"],
+                "mastery_snapshot": report_payload["mastery_snapshot"],
+                "streak_days": report_payload["streak_days"],
+                "total_xp": report_payload["total_xp"],
+                "adherence": adherence,
+            }
 
         # Fallback to algorithmic report
+        fallback_report = {
+            "overall_mastery": progress.get("overall_mastery"),
+            "strengths": [s["subject_code"] for s in progress.get("subjects", []) if (s.get("mastery_score") or 0) > 0.7],
+            "recommendations": ["Keep going!"],
+        }
         return {
             "learner_id": str(learner_id),
             "report_date": datetime.now().isoformat(),
+            "report": fallback_report,
             "summary": f"Your child is at {int(progress['overall_mastery'] * 100)}% mastery.",
-            "recommendations": ["Keep going!"],
-            "sections": [
-                {"title": "Summary", "content": "Progressing well."},
-            ],
+            "recommendations": fallback_report["recommendations"],
+            "sections": [{"title": "Summary", "content": "Progressing well."}],
             "mastery_snapshot": progress["subjects"],
-            "adherence": adherence
+            "adherence": adherence,
         }
 
     async def _verify_guardian_access(

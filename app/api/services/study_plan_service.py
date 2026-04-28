@@ -52,7 +52,7 @@ class StudyPlanService:
         self,
         learner_id: UUID,
         grade: int,
-        knowledge_gaps: list[str] | None = None,
+        knowledge_gaps: list | None = None,
         subjects_mastery: dict | None = None,
         gap_ratio: float = 0.4,
     ) -> dict:
@@ -175,7 +175,7 @@ class StudyPlanService:
         grade: int,
         grade_band: str,
         subjects_mastery: dict[str, float],
-        knowledge_gaps: list[str],
+        knowledge_gaps: list | None,
         gap_ratio: float,
     ) -> dict:
         schedule = {
@@ -257,13 +257,22 @@ class StudyPlanService:
         return [subject for subject, _score in prioritized]
 
     def _generate_remediation_tasks(
-        self, knowledge_gaps: list[dict], grade: int, grade_band: str
+        self, knowledge_gaps: list | None, grade: int, grade_band: str
     ) -> list[dict]:
         tasks = []
-        # Prioritize foundational gaps (lowest grade first) and high severity
+        # Normalize gaps: tests and callers may pass either list[str] (concepts)
+        # or list[dict] with keys ('concept','gap_grade','severity'). Convert
+        # strings to dicts so downstream logic can rely on `.get()`.
+        normalized: list[dict] = []
+        if knowledge_gaps:
+            for g in knowledge_gaps:
+                if isinstance(g, dict):
+                    normalized.append(g)
+                elif isinstance(g, str):
+                    normalized.append({"concept": g, "gap_grade": grade, "severity": 0.5})
         sorted_gaps = sorted(
-            knowledge_gaps, 
-            key=lambda x: (x.get("gap_grade", 9), -x.get("severity", 0))
+            normalized,
+            key=lambda x: (x.get("gap_grade", 9), -x.get("severity", 0)),
         )
         
         for gap_obj in sorted_gaps[:6]:
@@ -344,16 +353,22 @@ class StudyPlanService:
         return "MATH"
 
     def _determine_week_focus(
-        self, knowledge_gaps: list[dict], subjects_mastery: dict[str, float]
+        self, knowledge_gaps: list | None, subjects_mastery: dict[str, float]
     ) -> str:
         if knowledge_gaps:
+            normalized: list[dict] = []
+            for g in knowledge_gaps:
+                if isinstance(g, dict):
+                    normalized.append(g)
+                elif isinstance(g, str):
+                    normalized.append({"concept": g, "gap_grade": None, "severity": 0.5})
             # Sort as we do for tasks
             sorted_gaps = sorted(
-                knowledge_gaps, 
-                key=lambda x: (x.get("gap_grade", 9), -x.get("severity", 0))
+                normalized,
+                key=lambda x: (x.get("gap_grade", 9), -x.get("severity", 0)),
             )
             top_gap = sorted_gaps[0]
-            concept = top_gap["concept"]
+            concept = top_gap.get("concept")
             subject = top_gap.get("subject") or self._concept_to_subject(concept)
             return (
                 f"Foundational Bridge: Mastering {subject} {concept.replace('_', ' ').title()}"
