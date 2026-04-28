@@ -81,12 +81,12 @@ export function ParentDashboard({ onBack }) {
           ) : (
             <>
               {learners.map((l) => (
-                <Card key={l.learner_id} className="p-6 bg-white shadow-xl hover:shadow-2xl transition-all">
+                <Card key={l.learner_id} className="p-6 bg-[var(--surface2)]/60 backdrop-blur-md shadow-2xl border border-[var(--border)] hover:border-[var(--blue)]/30 transition-all duration-300">
                   <div className="flex items-center gap-4 mb-4">
-                    <div className="w-12 h-12 bg-[var(--gold)] rounded-full flex items-center justify-center text-2xl">🦁</div>
+                    <div className="w-12 h-12 bg-gradient-to-br from-[var(--gold)] to-[var(--orange)] rounded-full flex items-center justify-center text-2xl shadow-[0_0_15px_rgba(255,215,0,0.3)]">🦁</div>
                     <div>
-                      <h3 className="font-bold text-gray-800">Grade {l.grade} Learner</h3>
-                      <p className="text-xs text-gray-400">ID: {l.learner_id.substring(0, 8)}...</p>
+                      <h3 className="font-bold text-white">Grade {l.grade} Learner</h3>
+                      <p className="text-[10px] text-[var(--muted)] font-mono">ID: {l.learner_id.substring(0, 8)}...</p>
                     </div>
                     <div className="ml-auto">
                       {l.is_verified ? (
@@ -97,14 +97,29 @@ export function ParentDashboard({ onBack }) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-gray-50 p-3 rounded-lg text-center">
-                      <div className="text-[10px] text-gray-400 font-bold uppercase">Total XP</div>
-                      <div className="text-lg font-bold text-blue-600">{l.total_xp}</div>
+                  <div className="space-y-4 mb-6">
+                    <div className="bg-[var(--bg)]/50 p-4 rounded-xl border border-[var(--border)]">
+                      <div className="flex justify-between items-end mb-2">
+                        <div className="text-[10px] text-[var(--muted)] font-bold uppercase tracking-wider">Level {(Math.floor(l.total_xp / 100)) + 1} Progress</div>
+                        <div className="text-xs font-bold text-[var(--blue)]">{l.total_xp % 100}/100 XP</div>
+                      </div>
+                      <div className="h-2 w-full bg-[var(--surface2)] rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-[var(--blue)] to-[var(--purple)] transition-all duration-1000"
+                          style={{ width: `${l.total_xp % 100}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="bg-gray-50 p-3 rounded-lg text-center">
-                      <div className="text-[10px] text-gray-400 font-bold uppercase">Streak</div>
-                      <div className="text-lg font-bold text-orange-500">{l.streak_days} days</div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-[var(--surface2)]/40 p-3 rounded-xl border border-[var(--border)] text-center">
+                        <div className="text-[10px] text-[var(--muted)] font-bold uppercase">Total XP</div>
+                        <div className="text-lg font-black text-[var(--gold)]">{l.total_xp}</div>
+                      </div>
+                      <div className="bg-[var(--surface2)]/40 p-3 rounded-xl border border-[var(--border)] text-center">
+                        <div className="text-[10px] text-[var(--muted)] font-bold uppercase">Streak</div>
+                        <div className="text-lg font-black text-[var(--orange)]">{l.streak_days} days</div>
+                      </div>
                     </div>
                   </div>
 
@@ -126,21 +141,21 @@ export function ParentDashboard({ onBack }) {
       </div>
 
       {showLinkModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <Card className="w-full max-w-md p-8 bg-white">
-            <h2 className="text-2xl font-bold mb-4">Link Learner Profile</h2>
-            <p className="text-gray-500 text-sm mb-6">Enter the Learner Pseudonym ID from your child's app dashboard.</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <Card className="w-full max-w-md p-8 bg-[var(--surface)] border-[var(--border)] shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+            <h2 className="text-2xl font-['Baloo_2'] font-bold mb-2 text-white">Link Learner Profile</h2>
+            <p className="text-[var(--muted)] text-sm mb-8">Enter the Learner Pseudonym ID from your child's app dashboard.</p>
             
             <form onSubmit={handleLinkLearner}>
               <div className="mb-6">
-                <label className="block text-sm font-bold text-gray-700 mb-1">Learner ID</label>
+                <label className="block text-sm font-bold text-blue-100 mb-2">Learner Pseudonym ID</label>
                 <input
-                  type="text"
-                  required
-                  placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
-                  className="w-full border-2 border-gray-100 rounded-xl p-4 outline-none focus:border-[var(--gold)]"
-                  value={linkId}
-                  onChange={(e) => setLinkId(e.target.value)}
+                   type="text"
+                   required
+                   placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
+                   className="w-full bg-[var(--bg)] border-2 border-[var(--border)] rounded-xl p-4 text-white outline-none focus:border-[var(--gold)] transition-all font-mono text-sm"
+                   value={linkId}
+                   onChange={(e) => setLinkId(e.target.value)}
                 />
               </div>
               
