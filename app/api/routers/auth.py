@@ -1,7 +1,7 @@
 """EduBoost SA — Auth Router"""
 
 from datetime import datetime, timedelta
-import hashlib
+from app.api.util.encryption import encrypt_email, decrypt_email
 import uuid
 
 import jwt
@@ -83,16 +83,16 @@ async def require_role(role: str):
 
 
 async def _verify_guardian(email: str, learner_pseudonym_id: str) -> bool:
-    email_hash = hashlib.sha256(email.lower().strip().encode()).hexdigest()
+    email_encrypted = encrypt_email(email.lower().strip())
     try:
         async with AsyncSessionFactory() as session:
             # 1. Find parent account by email hash
             result = await session.execute(
-                select(ParentAccount).where(ParentAccount.email_encrypted == email_hash)
+                select(ParentAccount).where(ParentAccount.email_encrypted == email_encrypted)
             )
             parent = result.scalar_one_or_none()
             if not parent:
-                log.warning("auth.guardian.account_not_found", email_hash=email_hash)
+                log.warning("auth.guardian.account_not_found", email_encrypted=email_encrypted)
                 return False
 
             # 2. Check for direct link to this learner
@@ -145,9 +145,7 @@ class LinkLearnerRequest(BaseModel):
 async def register_guardian(request: Request, body: GuardianRegisterRequest):
     """Register a new guardian account. Returns a JWT immediately."""
     email_lower = body.email.lower().strip()
-    email_encrypted = hashlib.sha256(
-        email_lower.encode()
-    ).hexdigest()  # Placeholder for real encryption
+    email_encrypted = encrypt_email(email_lower)
 
     async with AsyncSessionFactory() as session:
         # Check for duplicate
@@ -197,7 +195,7 @@ async def register_guardian(request: Request, body: GuardianRegisterRequest):
 async def guardian_login(request: Request, request_body: GuardianLoginRequest):
     """Login with email + optional learner pseudonym verification."""
     email_lower = request_body.email.lower().strip()
-    email_encrypted = hashlib.sha256(email_lower.encode()).hexdigest()
+    email_encrypted = encrypt_email(email_lower)
 
     async with AsyncSessionFactory() as session:
         result = await session.execute(
@@ -234,10 +232,9 @@ async def guardian_login(request: Request, request_body: GuardianLoginRequest):
             ).model_dump(),
         )
 
-    email_hash = hashlib.sha256(request_body.email.lower().strip().encode()).hexdigest()
     token = _create_token(
         {
-            "sub": email_hash,
+            "sub": str(parent.parent_id) if parent else email_encrypted,
             "learner_id": request_body.learner_pseudonym_id,
             "role": "guardian",
         }

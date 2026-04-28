@@ -39,7 +39,7 @@ class LearnerIdentity(Base):
     )
     full_name_encrypted = Column(Text)
     date_of_birth_encrypted = Column(Text)
-    guardian_email_encrypted = Column(Text, nullable=False)
+    guardian_email_encrypted = Column(Text, nullable=False)  # AES-256 encrypted
     consent_version = Column(SmallInteger, nullable=False)
     consent_timestamp = Column(DateTime(timezone=True), nullable=False)
     data_deletion_requested = Column(Boolean, default=False)
@@ -486,7 +486,7 @@ class ParentAccount(Base):
     __tablename__ = "parent_accounts"
 
     parent_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email_encrypted = Column(Text, nullable=False)
+    email_encrypted = Column(Text, nullable=False)  # AES-256 encrypted
     password_hash = Column(String(200))
     full_name_encrypted = Column(Text)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

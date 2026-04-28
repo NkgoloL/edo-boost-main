@@ -107,7 +107,10 @@ class Orchestrator:
             gap_grade=req.params.get("gap_grade"),
             sa_theme=req.params.get("sa_theme"),
         )
-        system_prompt, user_prompt = await build_lesson_prompts(lp)
+        # Apply Ether profile prompt modifier to personalise system prompt
+        system_prompt, user_prompt = await build_lesson_prompts(
+            lp, prompt_modifier=profile.to_prompt_modifier()
+        )
         stamp = await j.review(
             action, system_prompt=system_prompt, user_prompt=user_prompt
         )

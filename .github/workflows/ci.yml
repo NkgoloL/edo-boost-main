@@ -104,9 +104,9 @@ jobs:
       env:
         PGPASSWORD: devpassword
 
-    - name: Run Backend Tests
+    - name: Run Backend Tests (skip live LLM tests)
       run: |
-        pytest tests/ --cov=app --cov-report=xml --cov-report=term-missing -v || true
+        pytest tests/ -m "not llm" --cov=app --cov-report=xml --cov-report=term-missing -v || true
 
   # ── Docker Build Validation ──────────────────────────────────────────────────
   docker-build:

@@ -23,8 +23,8 @@ export const AuthService = {
 export const LearnerService = {
   getProfile: (learnerId) => fetchApi(`/learners/${learnerId}`),
   
-  getGamificationProfile: (learnerId) => 
-    fetchApi(`/gamification/learner/${learnerId}/profile`),
+  getGamificationProfile: (learnerId) =>
+    fetchApi(`/gamification/profile/${learnerId}`),
 
   getStudyPlan: (learnerId) => fetchApi(`/study-plans/${learnerId}`),
   

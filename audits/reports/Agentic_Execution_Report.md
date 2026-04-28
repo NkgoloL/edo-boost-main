@@ -47,6 +47,11 @@
   - Also fixed `test_gamification_integration.py` and `test_gamification_service.py` to properly handle async mocks during XP distribution.
   - All tests passing.
 
+### Epic (PII Scrubber Refinement)
+- **Status**: ✅ Completed (2026-04-28)
+- **Outcome**: Updated `app/api/core/pii_patterns.py` to perform stricter SA ID detection using a YYMMDD date validation and included an optional Luhn-style checksum algorithm. Updated `inference_gateway.scrub_pii` to only redact 13-digit sequences when they represent valid SA ID numbers (reducing false positives). Tests updated and validated.
+- **Commit**: To be committed.
+
 ---
 
 ## Phase 3: Continuous Improvements

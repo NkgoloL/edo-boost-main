@@ -55,7 +55,20 @@ _anthropic_client: Optional[AsyncAnthropic] = (
 
 def scrub_pii(text: str) -> str:
     """Remove South African PII patterns from a string."""
+    # 1) Special-case SA ID numbers: only redact if they validate
+    from app.api.core.pii_patterns import SA_ID_RE, is_valid_sa_id
+
+    def _replace_sa_id(match):
+        idv = match.group(0)
+        return "[SA_ID]" if is_valid_sa_id(idv) else idv
+
+    text = SA_ID_RE.sub(_replace_sa_id, text)
+
+    # 2) Apply remaining scrub patterns (skip the generic SA_ID entry if present)
     for pattern, replacement in _PII_PATTERNS:
+        # Skip pattern that matches plain SA ID digits (handled above)
+        if pattern.pattern == SA_ID_RE.pattern:
+            continue
         text = pattern.sub(replacement, text)
     return text
 

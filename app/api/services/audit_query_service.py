@@ -76,7 +76,7 @@ class AuditQueryService:
         conditions = []
 
         if learner_id:
-            conditions.append(AuditEvent.learner_hash == str(learner_id))
+            conditions.append(AuditEvent.learner_id == learner_id)
 
         if event_type:
             conditions.append(AuditEvent.event_type == event_type)
@@ -125,9 +125,9 @@ class AuditQueryService:
                     "event_id": str(event.event_id),
                     "event_type": event.event_type,
                     "pillar": event.pillar,
-                    "learner_hash": event.learner_hash,
-                    "action_id": event.action_id,
-                    "payload": event.payload,
+                    "learner_id": str(event.learner_id) if event.learner_id else None,
+                    "resource_id": event.resource_id,
+                    "details": event.details,
                     "occurred_at": event.occurred_at.isoformat(),
                 }
                 for event in events
@@ -148,7 +148,7 @@ class AuditQueryService:
         # Get all events for this learner or all events
         if learner_id:
             result = await self.session.execute(
-                select(AuditEvent).where(AuditEvent.learner_hash == str(learner_id))
+                select(AuditEvent).where(AuditEvent.learner_id == learner_id)
             )
         else:
             result = await self.session.execute(select(AuditEvent))
@@ -167,7 +167,7 @@ class AuditQueryService:
             elif query_lower in event.pillar.lower():
                 matching_events.append(event)
             # Search in payload (as string)
-            elif event.payload and query_lower in str(event.payload).lower():
+            elif event.details and query_lower in str(event.details).lower():
                 matching_events.append(event)
 
         # Sort by date descending
@@ -185,8 +185,8 @@ class AuditQueryService:
                     "event_id": str(event.event_id),
                     "event_type": event.event_type,
                     "pillar": event.pillar,
-                    "learner_hash": event.learner_hash,
-                    "payload": event.payload,
+                    "learner_id": str(event.learner_id) if event.learner_id else None,
+                    "details": event.details,
                     "occurred_at": event.occurred_at.isoformat(),
                 }
                 for event in matching_events
@@ -208,7 +208,7 @@ class AuditQueryService:
         result = await self.session.execute(
             select(AuditEvent)
             .where(
-                AuditEvent.learner_hash == str(learner_id),
+                AuditEvent.learner_id == learner_id,
                 AuditEvent.occurred_at >= cutoff_date,
             )
             .order_by(AuditEvent.occurred_at.asc())
@@ -230,7 +230,7 @@ class AuditQueryService:
                 "event_id": str(event.event_id),
                 "event_type": event.event_type,
                 "pillar": event.pillar,
-                "payload": event.payload,
+                "details": event.details,
                 "occurred_at": event.occurred_at.isoformat(),
             }
 
@@ -303,11 +303,11 @@ class AuditQueryService:
 
         # Count unique learners affected
         result = await self.session.execute(
-            select(AuditEvent.learner_hash)
+            select(AuditEvent.learner_id)
             .where(AuditEvent.occurred_at >= cutoff_date)
             .distinct()
         )
-        unique_learners = len(result.scalars().all())
+        unique_learners = len([lid for lid in result.scalars().all() if lid])
 
         return {
             "report_period_days": days,

@@ -28,7 +28,7 @@ def upgrade() -> None:
     op.create_table(
         "parent_accounts",
         sa.Column("parent_id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("email_encrypted", sa.String(64), unique=True, nullable=False),
+        sa.Column("email_encrypted", sa.Text, unique=True, nullable=False),
         sa.Column("password_hash", sa.String(200), nullable=False),
         sa.Column("full_name_encrypted", sa.Text),
         sa.Column("is_verified", sa.Boolean, default=False),
@@ -145,5 +145,5 @@ def downgrade() -> None:
     op.drop_table("assessment_attempts")
     op.drop_table("assessments")
     op.drop_table("lessons")
-    op.drop_table("parent_learnner_links")
+    op.drop_table("parent_learner_links")
     op.drop_table("parent_accounts")

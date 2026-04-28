@@ -49,6 +49,8 @@
 > "Act as a chaos/security monkey. Scan the entire FastAPI backend for any routes returning Learner data. Verify that every single route utilizes the POPIA data-scrubbing utility. If any routes are missing it, autonomously inject the scrubbing utility, run the existing test suite to ensure nothing broke, and commit the security patch."
 - [x] Status: Completed (2026-04-28)
 
+- [x] **Epic (PII Scrubber Refinement)**: Strengthen SA ID detection with date validation and optional checksum (Luhn) logic (Completed: 2026-04-28)
+
 ---
 
 ## Phase 3: Continuous Improvements

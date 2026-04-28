@@ -21,6 +21,7 @@ from app.api.models.db_models import (
     StudyPlan,
     SubjectMastery,
 )
+from app.api.util.encryption import decrypt_email
 
 
 class ParentPortalService:
@@ -428,6 +429,9 @@ class ParentPortalService:
             "learner_id": str(learner_id),
             "guardian_id": str(guardian_id),
             "learner_identity_present": learner_identity is not None,
+            "guardian_email": decrypt_email(learner_identity.guardian_email_encrypted)
+            if learner_identity and getattr(learner_identity, "guardian_email_encrypted", None)
+            else None,
             "learner_profile": {
                 "grade": learner.grade,
                 "home_language": learner.home_language,

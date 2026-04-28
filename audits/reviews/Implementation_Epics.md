@@ -7,11 +7,11 @@ This document outlines the strategic Epics required to address the recommendatio
 ## Epic 1: Constitutional Integrity & Pillar Completion
 **Goal**: Complete the "Five Pillars" implementation to ensure the pedagogical and regulatory layers are fully functional as designed.
 
-- [ ] **Ether Integration**: Pass `LearnerEtherProfile.to_prompt_modifier()` into the system prompt construction in `lesson_service.py`.
+- [x] **Ether Integration**: Pass `LearnerEtherProfile.to_prompt_modifier()` into the system prompt construction in `lesson_service.py`.
 - [ ] **Judiciary LLM Path**: Implement a fast Claude-backed evaluation path for critical constitutional rules in `judiciary.py`.
 - [ ] **Legislature Knowledge Base**: Transition from hardcoded stubs to a vector knowledge base of real CAPS curriculum documents.
-- [ ] **Judiciary LLM Caching & Test Gating**: Add a short-lived cache for rapid Claude responses and gate LLM-based tests with the `llm` pytest marker so CI doesn't call paid APIs by default.
-- [ ] **Ether Prompt Modifier Wiring**: Ensure `LearnerEtherProfile.to_prompt_modifier()` is accepted by `build_lesson_prompts()` and is plumbed through the lesson generation path.
+- [x] **Judiciary LLM Caching & Test Gating**: Add a short-lived cache for rapid Claude responses and gate LLM-based tests with the `llm` pytest marker so CI doesn't call paid APIs by default.
+- [x] **Ether Prompt Modifier Wiring**: Ensure `LearnerEtherProfile.to_prompt_modifier()` is accepted by `build_lesson_prompts()` and is plumbed through the lesson generation path.
 - [ ] **Constitutional Alignment**: Ensure all `ExecutiveAction` reviews actually honor the `use_llm_review` flag.
 
 ## Epic 2: Data Privacy, Security & Compliance
@@ -19,7 +19,7 @@ This document outlines the strategic Epics required to address the recommendatio
 
 - [ ] **AES-256 Email Encryption**: Replace SHA-256 email hashing with decryptable AES-256 encryption in the `LearnerIdentity` model.
 	- [ ] **Migration Plan**: Add an Alembic migration to decrypt/hash-migrate existing email values into the new encrypted column while keeping a rollback path.
-- [ ] **Audit Service Reconciliation**: Fix field name mismatches in `audit_query_service.py` to match SQLAlchemy models.
+- [x] **Audit Service Reconciliation**: Fix field name mismatches in `audit_query_service.py` to match SQLAlchemy models.
 - [ ] **PII Scrubber Refinement**: Update the SA ID regex pattern with context anchors or Luhn validation to reduce false positives.
 - [ ] **Production Gating**: Implement environment-based gating for developer login bypasses.
 - [ ] **Right-to-Access Endpoint**: Fix `Learner` field references in `system.py` to ensure data subject reports can be generated.
