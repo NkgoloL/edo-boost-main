@@ -134,18 +134,45 @@ We use the **TDD loop** described in `AGENT_INSTRUCTIONS.md`:
 5. Open a Pull Request
 ```
 
-### Branch naming
+### Branch Naming
 
-```
-feat/<short-description>       # new feature
-fix/<issue-number>-<description>  # bug fix referencing an issue
-test/<module>-coverage         # adding missing tests
-docs/<what-you-documented>     # documentation only
-refactor/<scope>               # code changes with no behaviour change
-chore/<task>                   # tooling, config, CI changes
-```
+| Type | Pattern | Example |
+|---|---|---|
+| Feature | `feat/<pillar>/<description>` | `feat/judiciary/stamp-caching` |
+| Bug fix | `fix/<pillar>/<description>` | `fix/ether/decay-scheduler` |
+| Compliance | `popia/<description>` | `popia/erasure-cascade` |
+| Docs | `docs/<description>` | `docs/ether-archetype-map` |
+| Chore | `chore/<description>` | `chore/update-requirements` |
 
-Examples: `feat/irt-scoring-v2`, `fix/42-consent-flow`, `test/lesson-service-coverage`
+---
+
+## Pull Request Requirements
+
+All PRs must satisfy **all** of the following before merge to `main`:
+
+### Automated gates (CI must be green)
+- [ ] `ruff check` passes
+- [ ] `mypy` type check passes
+- [ ] Unit test coverage ≥ 80% for modified modules
+- [ ] `alembic check` passes (no schema drift)
+- [ ] POPIA compliance tests pass
+
+### Manual review requirements
+
+| Changed path | Required reviewers |
+|---|---|
+| `app/api/judiciary/` | 2 senior engineers |
+| `app/api/constitutional_schema/` | 1 senior engineer + Information Officer |
+| `app/api/audits/` | 1 senior engineer |
+| `popia/` | Information Officer |
+| Any migration in `alembic/versions/` | 1 senior engineer |
+
+### PR description checklist
+- [ ] Describe what changed and why
+- [ ] List the `ConstitutionalRule` rule IDs that apply to this change (if touching learner data)
+- [ ] Confirm no PII appears in any test fixture, log sample, or seed data
+- [ ] Update `CHANGELOG.md`
+- [ ] Add/update tests for new behaviour
 
 ---
 

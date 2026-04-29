@@ -1,0 +1,153 @@
+groups:
+  # ---------------------------------------------------------------------------
+  # PILLAR 3 — JUDICIARY
+  # ---------------------------------------------------------------------------
+  - name: judiciary_alerts
+    rules:
+      - alert: JudiciaryHighRejectionRate
+        expr: |
+          (
+            rate(judiciary_reviews_total{verdict="REJECTED"}[15m])
+            /
+            rate(judiciary_reviews_total[15m])
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          pillar: judiciary
+        annotations:
+          summary: "Judiciary rejection rate exceeds 5% over 15 minutes"
+          description: >
+            Rejection rate is {{ $value | humanizePercentage }}.
+            Investigate constitutional_violations table for patterns.
+
+      - alert: JudiciaryHighLatency
+        expr: |
+          histogram_quantile(0.99, rate(judiciary_review_latency_seconds_bucket[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          pillar: judiciary
+        annotations:
+          summary: "Judiciary p99 latency exceeds 500ms SLO"
+          description: "p99 latency is {{ $value }}s"
+
+      - alert: JudiciaryServiceDown
+        expr: absent(judiciary_reviews_total) == 1
+        for: 2m
+        labels:
+          severity: critical
+          pillar: judiciary
+        annotations:
+          summary: "Judiciary service is not receiving requests — possible service failure"
+
+  # ---------------------------------------------------------------------------
+  # PILLAR 4 — FOURTH ESTATE (AUDIT)
+  # ---------------------------------------------------------------------------
+  - name: audit_alerts
+    rules:
+      - alert: AuditStreamHighLag
+        expr: audit_stream_consumer_lag > 1000
+        for: 2m
+        labels:
+          severity: warning
+          pillar: fourth_estate
+        annotations:
+          summary: "Audit stream consumer lag exceeds 1000 events"
+          description: "Stream {{ $labels.stream }} has {{ $value }} pending events."
+
+      - alert: AuditStreamCriticalLag
+        expr: audit_stream_consumer_lag > 10000
+        for: 1m
+        labels:
+          severity: critical
+          pillar: fourth_estate
+        annotations:
+          summary: "CRITICAL: Audit stream lag > 10000 — compliance events may be lost"
+
+      - alert: AuditDLQNonEmpty
+        expr: audit_events_written_total{event_type="dlq"} > 0
+        for: 1m
+        labels:
+          severity: critical
+          pillar: fourth_estate
+        annotations:
+          summary: "Events in audit Dead Letter Queue — manual review required"
+
+  # ---------------------------------------------------------------------------
+  # LLM PROVIDER ROUTING
+  # ---------------------------------------------------------------------------
+  - name: provider_alerts
+    rules:
+      - alert: LLMPrimaryProviderCircuitOpen
+        expr: llm_circuit_breaker_state{provider="groq"} == 1
+        for: 1m
+        labels:
+          severity: warning
+          pillar: executive
+        annotations:
+          summary: "Groq (primary LLM provider) circuit breaker is OPEN"
+
+      - alert: LLMAllProvidersDown
+        expr: |
+          sum(llm_circuit_breaker_state == 1) == 3
+        for: 1m
+        labels:
+          severity: critical
+          pillar: executive
+        annotations:
+          summary: "CRITICAL: All LLM providers have open circuit breakers"
+
+      - alert: HighProviderFallbackRate
+        expr: rate(llm_provider_fallbacks_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          pillar: executive
+        annotations:
+          summary: "High LLM provider fallback rate — Groq may be degraded"
+
+  # ---------------------------------------------------------------------------
+  # IRT ENGINE
+  # ---------------------------------------------------------------------------
+  - name: irt_alerts
+    rules:
+      - alert: IRTThetaDrift
+        expr: irt_theta_drift_std > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          pillar: irt
+        annotations:
+          summary: "IRT theta distribution drift detected (std={{ $value }})"
+          description: "Learner ability estimates may be systematically miscalibrated."
+
+  # ---------------------------------------------------------------------------
+  # LESSON GENERATION SLOs
+  # ---------------------------------------------------------------------------
+  - name: slo_alerts
+    rules:
+      - alert: LessonGenerationHighLatency
+        expr: |
+          histogram_quantile(0.99, rate(irt_scoring_latency_seconds_bucket[5m])) > 3
+        for: 3m
+        labels:
+          severity: warning
+          pillar: executive
+        annotations:
+          summary: "Lesson generation p99 latency exceeds 3s SLO"
+
+  # ---------------------------------------------------------------------------
+  # POPIA / COMPLIANCE
+  # ---------------------------------------------------------------------------
+  - name: popia_alerts
+    rules:
+      - alert: PIIScrubberBypass
+        expr: increase(judiciary_reviews_total{verdict="REJECTED"}[5m]) > 10
+        for: 1m
+        labels:
+          severity: critical
+          pillar: popia
+        annotations:
+          summary: "Spike in Judiciary rejections — possible PII scrubber bypass attempt"
+          description: "{{ $value }} rejections in the last 5 minutes. Audit immediately."
