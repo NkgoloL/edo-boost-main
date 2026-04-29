@@ -10,11 +10,14 @@ sudo chown -R $USER:$USER /opt/repo
 cd "$REPO_PATH"
 git init --bare
 
-echo "Configuring local repository to push to the bare repo..."
+echo "Configuring local repository with a dedicated redmine remote..."
 cd "$LOCAL_REPO"
-# Add the bare repo as a push URL to the origin remote
-git remote set-url --add --push origin "$REPO_PATH"
-git remote set-url --add --push origin git@github.com:NkgoloL/edo-boost-main.git
+# Add a dedicated redmine remote instead of modifying origin
+if git remote | grep -q "^redmine$"; then
+    git remote set-url redmine "$REPO_PATH"
+else
+    git remote add redmine "$REPO_PATH"
+fi
 
 echo "Repository setup complete!"
 echo ""
