@@ -27,6 +27,12 @@ from app.api.models.deletion import DeletionRequest
 from app.api.models.guardian import Guardian
 from app.api.models.learner import Learner
 from app.api.services.audit_service import AuditService
+from app.api.core.metrics import (
+    CONSENT_GRANTED_TOTAL,
+    CONSENT_REVOKED_TOTAL,
+    ERASURE_REQUESTED_TOTAL,
+    ACTIVE_CONSENTS_TOTAL
+)
 
 log = structlog.get_logger()
 
@@ -98,6 +104,10 @@ class ConsentService:
             ip_address=ip_address,
         )
 
+        CONSENT_GRANTED_TOTAL.inc()
+        # Gauge update would ideally be done periodically, but we can do a simple inc/dec here
+        ACTIVE_CONSENTS_TOTAL.inc()
+
         log.info("consent.granted", learner_id=str(learner_id), version=consent_version)
         return consent
 
@@ -143,6 +153,9 @@ class ConsentService:
             payload={"withdrawn_consent_ids": [str(i) for i in withdrawn_ids], "reason": reason},
             ip_address=ip_address,
         )
+        CONSENT_REVOKED_TOTAL.inc()
+        ACTIVE_CONSENTS_TOTAL.dec(len(withdrawn_ids))
+
         log.info("consent.withdrawn", learner_id=str(learner_id), count=len(withdrawn_ids))
 
     # ── Check active consent ──────────────────────────────────────────────────
@@ -202,6 +215,8 @@ class ConsentService:
             payload={"scope": scope, "scheduled_for": scheduled.isoformat(), "reason": reason},
             ip_address=ip_address,
         )
+
+        ERASURE_REQUESTED_TOTAL.inc()
 
         log.info(
             "erasure.requested",

@@ -17,6 +17,10 @@ from app.api.judiciary.provider_router import ProviderRouter
 from app.api.judiciary.profiler import EtherPromptModifier
 from app.api.services.prompt_manager import PromptManager
 from app.api.core.config import settings
+from app.api.core.metrics import LESSONS_DELIVERED_TOTAL
+from app.api.services import i18n_service
+from app.api.models.db_models import Learner
+from sqlalchemy import select
 
 import redis.asyncio as redis_async
 import json
@@ -149,8 +153,19 @@ class LessonService(WorkerAgent):
         topic = action.parameters["topic"]
         learner_pseudonym = action.learner_pseudonym
 
+        # Fetch learner language
+        lang_res = await self._session.execute(
+            select(Learner.home_language).where(Learner.id == learner_pseudonym)
+        )
+        home_language = lang_res.scalar() or "en"
+
         # Build prompt
         system_prompt, user_prompt = await self._build_prompts(subject, grade, topic)
+
+        # Enrich prompts with language/cultural context
+        system_prompt = i18n_service.build_multilingual_system_prompt(
+            system_prompt, home_language, grade, subject
+        )
 
         # Apply Ether prompt modification (Pillar 5)
         modifier = EtherPromptModifier(self._session)
@@ -161,6 +176,13 @@ class LessonService(WorkerAgent):
             prompt=modified_prompt,
             system_prompt=system_prompt,
         )
+
+        # Increment metrics
+        LESSONS_DELIVERED_TOTAL.labels(
+            subject=subject,
+            grade_level=str(grade),
+            language=home_language
+        ).inc()
 
         lesson_result = {
             "action_id": action.action_id,

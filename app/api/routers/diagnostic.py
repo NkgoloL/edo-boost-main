@@ -21,6 +21,11 @@ from app.api.models.api_models import (
 )
 from typing import Any, Dict, cast
 from app.api.core.database import AsyncSessionFactory, get_db
+from app.api.core.metrics import (
+    DIAGNOSTIC_SESSION_TOTAL,
+    DIAGNOSTIC_SESSIONS_COMPLETED_TOTAL,
+    DIAGNOSTIC_DURATION
+)
 
 router = APIRouter()
 
@@ -176,9 +181,14 @@ async def run_diagnostic(request: DiagnosticRequest):
 
         # Note: Full response persistence would require tracking responses through orchestrator
         # For now, we log that the session was persisted
-        print(
-            f"Diagnostic session {session_id} persisted for learner {request.learner_id}"
-        )
+        # Metrics
+        DIAGNOSTIC_SESSIONS_COMPLETED_TOTAL.labels(
+            subject=request.subject_code,
+            grade_level=str(request.grade)
+        ).inc()
+        
+        # Approximate duration (since this is a single 'run' call)
+        DIAGNOSTIC_DURATION.labels(subject=request.subject_code).observe(2.0) # Placeholder for actual timing if available
 
         # Trigger background task to auto-refresh the study plan with new gaps
         from app.api.tasks.plan_tasks import refresh_study_plan_task
@@ -287,6 +297,12 @@ async def start_diagnostic(request: DiagnosticRequest):
             },
         )
         await session.commit()
+
+    # Metrics
+    DIAGNOSTIC_SESSION_TOTAL.labels(
+        subject=request.subject_code,
+        grade_level=str(request.grade)
+    ).inc()
 
     first_item = None
     if first_item_data:
@@ -459,8 +475,18 @@ async def submit_diagnostic_response(
         )
 
     if output.get("is_complete"):
-        from app.api.tasks.plan_tasks import refresh_study_plan_task
+        # Metrics
+        DIAGNOSTIC_SESSIONS_COMPLETED_TOTAL.labels(
+            subject=str(session_row["subject_code"]),
+            grade_level=str(session_row["grade_level"])
+        ).inc()
+        
+        # Observe duration if available
+        if session_row["started_at"]:
+            duration = (datetime.utcnow() - session_row["started_at"]).total_seconds()
+            DIAGNOSTIC_DURATION.labels(subject=str(session_row["subject_code"])).observe(duration)
 
+        from app.api.tasks.plan_tasks import refresh_study_plan_task
         refresh_study_plan_task.delay(str(session_row["learner_id"]))
 
     return DiagnosticSubmitResponse(

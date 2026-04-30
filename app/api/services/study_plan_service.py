@@ -17,6 +17,7 @@ from app.api.judiciary.base import ExecutiveAction, JudiciaryStampRef, WorkerAge
 from app.api.judiciary.provider_router import ProviderRouter
 from app.api.models.db_models import Learner, StudyPlan, SubjectMastery
 from app.api.services.prompt_manager import PromptManager
+from app.api.core.metrics import STUDY_PLANS_GENERATED_TOTAL
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +99,9 @@ class StudyPlanService(WorkerAgent):
 
         # Persist to DB
         await self._persist_plan(plan_result)
+
+        STUDY_PLANS_GENERATED_TOTAL.labels(grade_level=str(action.parameters["grade"])).inc()
+
         return plan_result
 
     async def _build_prompts(self, grade: int, gaps: list, mastery: dict) -> tuple:
