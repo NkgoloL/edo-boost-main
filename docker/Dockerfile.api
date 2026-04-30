@@ -1,10 +1,17 @@
 FROM python:3.11-slim AS base
 WORKDIR /workspace
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/workspace
+
+# Install system deps
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+# NOTE: torch / transformers / huggingface-hub are NOT here.
+#       They live in docker/Dockerfile.inference (the dedicated inference service).
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+
 COPY app ./app
 COPY alembic ./alembic
 COPY alembic.ini ./alembic.ini

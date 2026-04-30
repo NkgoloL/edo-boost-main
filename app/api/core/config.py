@@ -87,6 +87,9 @@ class Settings(BaseSettings):
     # RabbitMQ (Fourth Estate Audit Trail)
     RABBITMQ_URL: str = "amqp://guest:guest@localhost:5672/"
 
+    # Inference microservice (PyTorch/HuggingFace — dedicated container)
+    INFERENCE_SERVICE_URL: str = "http://localhost:9100"
+
     # CORS
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3050",

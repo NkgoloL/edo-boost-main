@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker/Dockerfile.inference
+#
+# [IMMEDIATE FIX 3] Dedicated container for offline ML inference.
+#
+# Rationale: torch==2.3.0 adds ~2.3 GB (CPU) to any image it is installed in.
+# Including it in Dockerfile.api inflated the API image to 3–5 GB, caused
+# multi-minute CI build times, and increased the attack surface of every API
+# replica. This service runs separately and is called by the API over HTTP.
+#
+# Build:  docker build -f docker/Dockerfile.inference -t eduboost-inference .
+# Run:    docker-compose up inference
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Stage 1: dependency resolver ─────────────────────────────────────────────
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+# Install build tools needed by some torch / scipy deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only the inference-specific requirements (keeps layer cache stable)
+COPY docker/requirements.inference.txt .
+
+RUN pip install --upgrade pip \
+ && pip install --no-cache-dir --prefix=/install -r requirements.inference.txt
+
+
+# ── Stage 2: runtime ─────────────────────────────────────────────────────────
+FROM python:3.11-slim AS runtime
+
+WORKDIR /workspace
+
+# Non-root user for security
+RUN groupadd -r eduboost && useradd -r -g eduboost -d /workspace eduboost
+
+# Copy installed packages from builder
+COPY --from=builder /install /usr/local
+
+# Copy ML source code
+COPY app/api/ml ./ml
+COPY app/api/constitutional_schema ./constitutional_schema
+
+# Inference service entrypoint (FastAPI micro-service)
+COPY docker/inference_server.py ./inference_server.py
+
+# HuggingFace model cache — mount as a Docker volume to persist across rebuilds
+ENV HF_HOME=/cache/huggingface \
+    TRANSFORMERS_CACHE=/cache/huggingface/transformers \
+    INFERENCE_PORT=9100
+
+RUN mkdir -p /cache/huggingface && chown -R eduboost:eduboost /cache /workspace
+
+USER eduboost
+
+EXPOSE 9100
+
+HEALTHCHECK --interval=60s --timeout=20s --start-period=120s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:9100/health')"
+
+CMD ["python", "-m", "uvicorn", "inference_server:app", \
+     "--host", "0.0.0.0", \
+     "--port", "9100", \
+     "--workers", "1"]

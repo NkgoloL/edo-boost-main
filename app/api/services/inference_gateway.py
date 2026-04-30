@@ -1,12 +1,15 @@
 """
 EduBoost SA — Inference Gateway
-PII Scrubber → Groq (primary) → Anthropic (secondary) → HuggingFace (fallback)
+PII Scrubber → Groq (primary) → Anthropic (secondary) → Inference Microservice (offline fallback)
 Learner identifiers NEVER reach the LLM.
 
-Phase 1, item #5: Uses AsyncAnthropic + AsyncGroq so LLM calls do not
-block the FastAPI event loop.
+Offline inference is delegated to a dedicated HTTP microservice (docker/Dockerfile.inference)
+that runs torch + transformers in isolation. The API container has NO torch dependency.
 
-Supports offline-capable inference mode for low-connectivity deployments.
+Provider chain:
+  1. Groq         (primary — ultra-fast, cloud)
+  2. Anthropic    (secondary — cloud fallback)
+  3. Inference svc (offline — http://inference:9100 — only when EDUBOOST_OFFLINE_MODE=true)
 """
 
 import os
@@ -37,8 +40,7 @@ log = structlog.get_logger()
 
 # ── Offline Mode Configuration ───────────────────────────────────────────────
 _OFFLINE_MODE = os.environ.get("EDUBOOST_OFFLINE_MODE", "false").lower() == "true"
-_OFFLINE_MODEL_PATH = os.environ.get("EDUBOOST_OFFLINE_MODEL_PATH", "./models")
-_offline_client = None
+_INFERENCE_SERVICE_URL = os.environ.get("INFERENCE_SERVICE_URL", "http://localhost:9100")
 
 # ── PII Patterns (South African) ─────────────────────────────────────────────
 _PII_PATTERNS = PII_SCRUBBER_PATTERNS
@@ -139,65 +141,46 @@ async def _call_offline_inference(
     system_prompt: str, user_prompt: str, max_tokens: int
 ) -> str:
     """
-    Offline-capable inference using local model.
+    Offline inference via the dedicated inference microservice.
 
-    Uses a local model for low-connectivity deployments.
-    Supports quantized nano models (e.g., TinyLlama, Phi-2).
+    This function calls the inference HTTP service (docker/Dockerfile.inference)
+    which runs torch + transformers in an isolated container. The API process
+    itself has NO torch dependency — keeping the API image lean (<500 MB).
+
+    The service is reachable at INFERENCE_SERVICE_URL (default: http://inference:9100
+    in Docker Compose, http://localhost:9100 for local dev).
     """
-    global _offline_client
+    prompt = f"{system_prompt}\n\n{user_prompt}"
+    payload = {
+        "prompt": prompt,
+        "max_new_tokens": min(max_tokens, 512),
+        "temperature": 0.7,
+    }
 
     try:
-        # Try to use transformers pipeline for local inference
-        from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
-        import torch
-
-        model_name = os.environ.get(
-            "EDUBOOST_OFFLINE_MODEL_NAME", "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-        )
-
-        # Initialize pipeline on first call
-        if _offline_client is None:
-            log.info("inference_gateway.offline.init", model=model_name)
-            tokenizer = AutoTokenizer.from_pretrained(model_name)
-            model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                torch_dtype=torch.float16
-                if torch.cuda.is_available()
-                else torch.float32,
-                device_map="auto" if torch.cuda.is_available() else "cpu",
+        async with httpx.AsyncClient(timeout=120) as client:
+            resp = await client.post(
+                f"{_INFERENCE_SERVICE_URL}/generate",
+                json=payload,
             )
-            _offline_client = pipeline(
-                "text-generation",
-                model=model,
-                tokenizer=tokenizer,
-                max_new_tokens=max_tokens,
-                temperature=0.7,
-                top_p=0.9,
+            resp.raise_for_status()
+            data = resp.json()
+            result = data.get("text", "")
+            log.info(
+                "inference_gateway.offline.success",
+                model=data.get("model", "unknown"),
+                latency_ms=data.get("latency_ms"),
             )
-
-        # Format prompt for chat models
-        prompt = (
-            f"<|system|>{system_prompt}</s>\n<|user|>{user_prompt}</s>\n<|assistant|>"
-        )
-
-        result = _offline_client(prompt)
-        generated = result[0]["generated_text"]
-
-        # Extract assistant response
-        if "<|assistant|>" in generated:
-            generated = generated.split("<|assistant|>")[-1].strip()
-
-        log.info("inference_gateway.offline.success", model=model_name)
-        return generated
-
-    except ImportError as e:
-        log.error("inference_gateway.offline.import_error", error=str(e))
+            return result
+    except httpx.HTTPStatusError as e:
+        log.error("inference_gateway.offline.http_error", status=e.response.status_code, error=str(e))
+        raise RuntimeError(f"Inference service returned {e.response.status_code}") from e
+    except httpx.ConnectError:
+        log.error("inference_gateway.offline.connect_failed", url=_INFERENCE_SERVICE_URL)
         raise RuntimeError(
-            "Offline inference requires transformers and torch packages"
-        ) from e
-    except Exception as e:
-        log.error("inference_gateway.offline.failed", error=str(e))
-        raise RuntimeError(f"Offline inference failed: {e}") from e
+            f"Cannot reach inference service at {_INFERENCE_SERVICE_URL}. "
+            "Ensure the inference container is running: docker-compose up inference"
+        )
 
 
 def is_offline_mode() -> bool:
