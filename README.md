@@ -12,15 +12,15 @@
 
 ## 📋 Overview
 
-EduBoost SA is an adaptive learning platform under active production-hardening. The current repository contains a FastAPI backend, a Next.js frontend, local Docker-based infrastructure, and early observability/test foundations. It is not yet production-grade end to end.
+EduBoost SA is an adaptive learning platform built on a "Five Pillar" architecture to ensure pedagogical alignment, operational excellence, and strict POPIA compliance. The platform provides personalized learning journeys for South African students while maintaining high standards for data privacy and educational quality.
 
 ### Key Features
-- 🧠 **Adaptive Diagnostic Engine** — IRT-based (Item Response Theory) assessments that find the exact grade level of each knowledge gap
-- 🤖 **AI Lesson Generation** — Claude/Llama 3 powered lessons with authentic South African context (ubuntu, braai, rands, local fauna)
-- 📅 **Dynamic Study Plans** — CAPS-aligned weekly schedules that prioritise foundation gaps while keeping pace with grade-level work
-- 🏆 **Gamification** — XP, badges, streaks for Grade R–3; discovery-based engagement for Grade 4–7
-- 🔒 **Privacy-oriented design goals** — parental consent, pseudonymous learner IDs, data minimisation, and right-to-erasure targets are part of the roadmap
-- 📊 **Parent Portal direction** — AI-generated progress reports and guardian visibility are present in concept and partial implementation
+- 🧠 **Adaptive Diagnostic Engine** — IRT-based (Item Response Theory) assessments that find the exact grade level of each knowledge gap.
+- 🤖 **AI Lesson Generation** — Claude/Llama 3 powered lessons with authentic South African context (ubuntu, braai, rands, local fauna).
+- 📅 **Dynamic Study Plans** — CAPS-aligned weekly schedules that prioritise foundation gaps while keeping pace with grade-level work.
+- 🏆 **Gamification** — XP, badges, streaks for Grade R–3; discovery-based engagement for Grade 4–7.
+- 🔒 **POPIA-Grade Privacy** — Backend-enforced parental consent, pseudonymous learner IDs, and a durable audit trail.
+- 📊 **Parent Portal** — AI-generated progress reports, right-to-access exports, and granular consent management.
 
 ---
 
@@ -33,30 +33,28 @@ eduboost-sa/
 │   │   ├── constitutional_schema/    # Schema and typing helpers
 │   │   ├── core/                     # Config, DB, Celery
 │   │   ├── ml/                       # IRT engine
-│   │   ├── models/                   # SQLAlchemy models
-│   │   ├── routers/                  # API routes
-│   │   ├── services/                 # LLM / lesson services
+│   │   ├── models/                   # SQLAlchemy models (Alembic-managed)
+│   │   ├── routers/                  # API routes (including Consent/Auth)
+│   │   ├── services/                 # LLM / lesson / consent services
 │   │   ├── main.py                   # FastAPI entrypoint
 │   │   ├── orchestrator.py           # Workflow orchestration
-│   │   ├── judiciary.py              # Policy / validation layer
-│   │   ├── fourth_estate.py          # Audit/event support
-│   │   └── profiler.py               # Profiling helpers
+│   │   ├── judiciary.py              # Policy / validation layer (Pillar 3)
+│   │   ├── fourth_estate.py          # Durable RabbitMQ Audit Trail (Pillar 4)
+│   │   └── profiler.py               # Profiling helpers (Pillar 5 - Ether)
 │   └── frontend/                     # Next.js frontend (App Router)
-│       ├── src/app/                  # Individual feature pages (dashboard, lesson, diagnostic, etc.)
+│       ├── src/app/                  # Feature pages (dashboard, lesson, diagnostic, etc.)
 │       ├── src/components/eduboost/   # Specialized UI components
 │       ├── src/lib/api/              # Production-grade service layer
 │       └── package.json
-├── docker/                           # Dockerfiles
-├── grafana/                          # Grafana provisioning
+├── docker/                           # Dockerfiles and Nginx configs
+├── grafana/                          # Grafana provisioning & dashboards
 ├── k8s/                              # Kubernetes manifests
-├── bicep/                            # Bicep IaC experiments
-├── scripts/                          # DB init / seed scripts
-├── tests/                            # Unit and integration tests
+├── scripts/                          # DB migrations, seeds, and maintenance
+├── tests/                            # E2E (Playwright), Unit, and Integration tests
 ├── docker-compose.yml                # Local development stack
+├── docker-compose.prod.yml           # Production deployment stack
 ├── prometheus.yml                    # Prometheus scrape config
 ├── requirements.txt                  # Python dependencies
-├── pytest.ini                        # Test configuration
-├── audits/roadmaps/Production_Grade_Roadmap.md # Production hardening roadmap
 └── README.md
 ```
 
@@ -64,20 +62,16 @@ eduboost-sa/
 
 ## ⚠️ Current State
 
-The current codebase already includes:
+EduBoost SA is currently in its **Beta** phase, with core architectural pillars fully implemented:
 
-- backend-mediated lesson generation paths
-- Docker-based local development with Postgres, Redis, Prometheus, Grafana, and Celery
-- initial constitutional/orchestration concepts
-- unit and integration tests for selected modules
+- ✅ **Pillar 2 (Executive)**: Backend-mediated lesson generation and study plan workflows.
+- ✅ **Pillar 3 (Judiciary)**: Constitutional policy enforcement via the Judiciary Stamp gate.
+- ✅ **Pillar 4 (Fourth Estate)**: Durable, RabbitMQ-backed audit trail for POPIA compliance.
+- ✅ **Pillar 5 (Ether)**: Psychological archetype profiling and adaptive prompt modification.
+- ✅ **Infrastructure**: Alembic-driven migrations, RabbitMQ messaging, and Prometheus/Grafana observability.
+- ✅ **Compliance**: Backend-enforced parental consent and right-to-erasure workflows.
 
-Known gaps still being addressed:
-
-- frontend is fully modularized with App Router; focus is now on high-fidelity UI and strict E2E testing
-- database lifecycle and migrations are in transition to an Alembic-driven workflow; drift prevention remains a key focus
-- authentication, consent, deletion, and audit guarantees exist but still need deeper end-to-end validation coverage
-- CI/CD and release automation are present but still evolving toward production promotion gates and runbooks
-- documentation must be kept aligned with the real repository state (avoid roadmap/report drift)
+---
 
 ## 🚀 Quick Start
 
@@ -85,26 +79,16 @@ Known gaps still being addressed:
 - Docker & Docker Compose
 - Node.js 18+
 - Python 3.11+
-- A Postgres database for local development
-- Redis for cache / worker development
-- API keys for the providers you want to test
 
-### 1. Clone & configure
+### 1. Clone & Configure
 ```bash
 git clone <your-github-repo-url>
 cd eduboost-sa
-# Create a .env file manually for local development and provide the required values
-
 cp env.example .env
 ```
 
-### 2. Start the full stack (Docker)
+### 2. Start the Full Stack (Docker)
 ```bash
-cd app/frontend
-npm install
-npm fund
-
-cd ../../
 docker compose up --build
 ```
 
@@ -112,118 +96,69 @@ Services will be available at:
 
 | Service | URL |
 |---|---|
-| Frontend | http://localhost:3050 |
+| Frontend | http://localhost:3000 |
 | API | http://localhost:8000 |
 | API Docs | http://localhost:8000/docs |
 | Grafana | http://localhost:3001 |
-| Prometheus | http://localhost:9090 |
-| Flower | http://localhost:5555 |
-
-### 3. Run without Docker (development)
-
-**Backend:**
-```bash
-cd app/api
-python -m venv ../../.venv
-source ../../.venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r ../../requirements.txt
-uvicorn main:app --reload --port 8000
-```
-
-**Frontend:**
-```bash
-cd app/frontend
-npm install
-npm run dev
-```
+| RabbitMQ UI | http://localhost:15672 (guest/guest) |
 
 ---
 
 ## 🔑 Environment Variables
 
-Create a local `.env` file for development. Key variables:
-
 | Variable | Description |
 |---|---|
-| `DATABASE_URL` | Async SQLAlchemy connection string |
-| `REDIS_URL` | Redis connection string |
-| `GROQ_API_KEY` | Primary LLM inference |
-| `ANTHROPIC_API_KEY` | Secondary / fallback lesson provider |
-| `SUPABASE_URL` | Optional Supabase URL if used |
-| `SUPABASE_SERVICE_KEY` | Optional backend service key |
-| `SUPABASE_ANON_KEY` | Optional frontend anon key |
+| `DATABASE_URL` | Async SQLAlchemy connection string (Postgres) |
+| `REDIS_URL` | Redis connection string (Cache/Celery) |
+| `RABBITMQ_URL` | RabbitMQ connection string (Audit Trail/Broker) |
+| `GROQ_API_KEY` | Primary LLM inference key |
+| `ANTHROPIC_API_KEY` | Secondary LLM provider key |
 | `JWT_SECRET` | JWT signing secret |
-| `ENCRYPTION_KEY` | Encryption key for sensitive data |
-| `ENCRYPTION_SALT` | Salt used with encryption / derivation flows |
-| `SENTRY_DSN` | Optional Sentry DSN |
+| `ENCRYPTION_KEY` | AES-256 key for PII at rest |
 
 ---
 
-## 🧪 Running Tests
+## 🧪 Testing
 
 ```bash
-# All tests
+# Unit & Integration tests
 pytest
 
-# Unit tests only
-pytest tests/unit/ -v
-
-# Integration tests
-pytest tests/integration/ -v
-
-# With coverage report
-pytest --cov=app --cov-report=html
+# E2E tests (Playwright)
+npx playwright test
 ```
 
 ---
 
-## 🗃️ Database Migrations
+## 🔐 POPIA & Privacy
 
-Schema changes are Alembic-driven. Docker Compose runs `alembic upgrade head`
-through the `migrate` service before the API and workers start.
+EduBoost SA implements privacy-by-design through:
 
-```bash
-alembic upgrade head
-alembic revision --autogenerate -m "describe change"
-```
-
-Runtime schema auto-creation is disabled. New schema changes should be added through `alembic/versions/`.
-
-## 📦 Deployment
-
-Deployment paths are still being consolidated. Today, the repository most clearly supports local Docker-based development via `docker-compose.yml`.
-
-The presence of `k8s/` and `bicep/` reflects work-in-progress infrastructure options, not a finalized production deployment standard.
-
----
-
-## 🔐 POPIA Alignment
-
-EduBoost SA is being built with POPIA-aligned design goals, including:
-
-1. **Data minimisation goals** — limit collection to the minimum needed for learning workflows.
-2. **Pseudonymisation goals** — avoid passing direct learner identity into AI workflows.
-3. **Parental consent** — intended as a required backend-enforced control before learner data use.
-4. **Right to Erasure** — targeted as a tracked workflow, but not yet verified end to end across all stores.
-5. **LLM Firewall** — lesson generation is routed through the backend; broader provider governance is still being hardened.
-6. **Audit Trail** — audit-oriented components exist, but consent and access auditing are not yet complete across all workflows.
+1. **Consent Gating**: All learner data access requires a valid, non-expired `ParentalConsent` record.
+2. **Pseudonymisation**: Real learner identities are never passed to LLM providers; opaque `pseudonym_id`s are used instead.
+3. **Durable Audit**: Every sensitive action and constitutional review is logged to a persistent RabbitMQ exchange.
+4. **Right to Erasure**: Guardian-initiated deletion workflows atomically revoke consent and soft-delete personal data.
+5. **PII Scrubbing**: Prompt paths are audited via the "Chaos Sweep" scripts to prevent leakage.
 
 ---
 
 ## 📈 Monitoring
 
-The local stack includes Prometheus and Grafana. Dashboards and metrics exist as an early foundation, but observability is still being expanded toward learner-journey and operational SLO coverage.
+The stack includes pre-configured Grafana dashboards covering:
+*   **Learner Journey SLOs**: Tracking diagnostic completion and lesson efficacy.
+*   **LLM Provider Health**: Latency and success rates across providers.
+*   **Constitutional Health**: Approval rates and violation trends.
 
 ---
 
 ## 🤝 Contributing
 
-Contributing guidance and engineering workflows still need to be formalized. Until then:
+We welcome contributions! Please refer to [CONTRIBUTING.md](CONTRIBUTING.md) for our engineering standards and [CHANGELOG.md](CHANGELOG.md) for version history.
 
-1. Create a feature branch
-2. Keep changes scoped
-3. Add or update tests with behavior changes
-4. Prefer roadmap-aligned hardening over new surface area
+1. Fork the repo and create a feature branch.
+2. Ensure all tests pass (`pytest` and `playwright`).
+3. Follow the 5-pillar architectural patterns.
+4. Submit a PR for review.
 
 ---
 

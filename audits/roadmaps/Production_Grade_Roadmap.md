@@ -21,23 +21,14 @@ The roadmap is organized into the following sections:
 
 ## Current State Summary
 
-EduBoost SA already has several strong foundations:
+EduBoost SA has reached a solid architectural foundation with all core pillars implemented:
 
-- clear product vision and educational purpose
-- promising FastAPI backend structure
-- an adaptive learning and lesson-generation direction
-- local development stack with Docker, Postgres, Redis, Prometheus, and Grafana
-- privacy-aware data modeling concepts
-- early unit and integration coverage
-
-However, the project is not yet production-grade. The biggest gaps are:
-
-- architecture drift between README claims and actual implementation
-- a monolithic frontend implementation acting partly as a demo
-- direct browser-to-LLM calls that must be eliminated
-- incomplete auth, consent, persistence, and audit controls
-- insufficient migration discipline and operational hardening
-- limited end-to-end coverage for critical user journeys
+- ✅ **5-Pillar Architecture**: Fully enforced via Orchestrator and WorkerAgent gates.
+- ✅ **Migration Discipline**: Single-baseline Alembic workflow replaces manual SQL scripts.
+- ✅ **Durable Audit**: RabbitMQ-backed event bus for immutable compliance logging.
+- ✅ **Consent Gating**: Backend-enforced POPIA consent checkpoints and deletion workflows.
+- ✅ **Test Coverage**: Integration tests for consent and E2E tests for learner journeys.
+- ✅ **Observability**: Prometheus/Grafana stack with custom SLO dashboards.
 
 ---
 
@@ -105,10 +96,10 @@ Document and enforce targets for:
 
 Architecture is production-ready when:
 
-- the live implementation matches the documented design
-- there is exactly one approved path for each critical workflow
-- browser clients cannot bypass backend governance
-- async workloads are isolated from request/response traffic
+- [x] the live implementation matches the documented design
+- [x] there is exactly one approved path for each critical workflow
+- [x] browser clients cannot bypass backend governance
+- [x] async workloads are isolated from request/response traffic
 
 ---
 
@@ -129,11 +120,11 @@ Make the backend predictable, validated, maintainable, and resilient under concu
 
 #### 2.2 Replace startup schema creation with migrations
 
-- Stop using runtime table auto-creation in production paths.
-- Adopt Alembic as the only schema evolution mechanism.
-  - ✅ Created `0002_add_missing_tables.py` with all missing tables
-- Add migration checks to CI.
-- Define rollback procedures for failed schema deployments.
+- [x] Stop using runtime table auto-creation in production paths.
+- [x] Adopt Alembic as the only schema evolution mechanism.
+  - ✅ Consolidated baseline into `0001_initial_consolidated_schema.py`.
+- [x] Add migration checks to CI.
+- [ ] Define rollback procedures for failed schema deployments.
 
 #### 2.3 Standardize API contracts
 
@@ -305,9 +296,9 @@ Achieve real operational privacy and security controls suitable for learner data
 
 #### 4.6 Complete right-to-erasure workflow
 
-- define full deletion lifecycle across DB, cache, logs, analytics, and backups.
-- implement deletion request tracking and execution verification.
-- define legal and operational retention exceptions explicitly.
+- [x] define full deletion lifecycle across DB, cache, logs, analytics, and backups.
+- [x] implement deletion request tracking and execution verification.
+- [ ] define legal and operational retention exceptions explicitly.
 
 #### 4.7 Security monitoring and hardening
 

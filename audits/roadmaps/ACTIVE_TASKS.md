@@ -55,3 +55,22 @@ Each item should be closed only when implemented, verified (tests or runtime val
   - [x] Registered the service worker and aligned offline queue/cache routes with backend APIs
   - [x] Added frontend CI, POPIA test path, and smoke test path
   - [x] Updated README, development, architecture, and POPIA docs for ports, migrations, routes, and encryption
+
+### Scope: Fourth Estate Migration & System Status Remediation
+
+- [x] **Durable Audit Trail (Pillar 4)**
+  - [x] Migrated Fourth Estate from Redis Streams to RabbitMQ for durable persistence
+  - [x] Added `aio-pika` dependency and configured `RABBITMQ_URL`
+  - [x] Integrated audit logging into `WorkerAgent` base class (automatic auditing)
+  - [x] Implemented lifecycle hooks in `main.py` for RabbitMQ connection management
+
+- [x] **System Status Report 2 Implementation**
+  - [x] Consolidated all schema management under a single Alembic baseline
+  - [x] Implemented and integration-tested end-to-end parental consent gating
+  - [x] Defined canonical production deployment path (`docker-compose.prod.yml` and `nginx.prod.conf`)
+  - [x] Fixed frontend port mapping and verified full stack boot
+  - [x] Implemented E2E Playwright test suite for key learner journeys
+  - [x] Executed POPIA "Chaos Sweep" for PII leakage prevention
+  - [x] Introduced semantic versioning and release automation workflows
+  - [x] Expanded Grafana dashboards for SLOs and LLM provider health
+  - [x] Formalized `CONTRIBUTING.md` and consolidated `.env.example`
