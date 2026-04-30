@@ -3,17 +3,16 @@ Unit tests for the Constitutional Schema (types.py + schema.py).
 Tests the Legislature (Pillar 1) data contracts.
 """
 import pytest
-from datetime import datetime
 from app.api.constitutional_schema.types import (
-    ConstitutionalRule, RuleCategory, RuleSeverity, ActionType,
+    RuleSeverity, ActionType,
     ExecutiveAction, ActionStatus, JudiciaryStamp, StampStatus,
     AuditEvent, EventType, EtherArchetype, EtherToneParams,
     LearnerEtherProfile, OperationResult,
 )
 from app.api.constitutional_schema.schema import (
     CONSTITUTIONAL_CORPUS, get_rules_for_action, get_critical_rules,
-    POPIA_01, POPIA_02, POPIA_03, CAPS_01, CAPS_02, CAPS_03,
-    CHILD_01, PII_01, LANG_01,
+    POPIA_01, POPIA_03, CAPS_01,
+    CHILD_01, PII_01,
 )
 
 

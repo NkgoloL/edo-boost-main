@@ -1,11 +1,10 @@
 """Unit tests for the IRT Adaptive Engine."""
-import pytest
-import math
+
 from app.api.ml.irt_engine import (
     p_correct, fisher_information, update_theta_mle,
     select_next_item, should_stop, check_gap_trigger,
     activate_gap_probe, compute_mastery_score, build_gap_report,
-    AssessmentSession, Response, Item, SubjectCode, ITEM_BANK, SAMPLE_ITEMS,
+    AssessmentSession, Response, SubjectCode, ITEM_BANK, SAMPLE_ITEMS,
 )
 
 

@@ -11,17 +11,13 @@ Covers:
 """
 from __future__ import annotations
 
-import hashlib
-import json
 import uuid
 from datetime import date
-from typing import AsyncGenerator
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -233,7 +229,6 @@ class TestWorkerAgentStampGate:
 
     @pytest.mark.asyncio
     async def test_hmac_signature_verification(self, sample_action):
-        from app.api.judiciary.base import ExecutiveAction
         key = "test-secret-key"
         signed = sample_action.sign(key)
         assert signed.signature != ""
@@ -444,7 +439,7 @@ class TestEtherProfiler:
         assert profile.warmth_level >= 0.0 and profile.warmth_level <= 1.0
 
     def test_profile_decay_toward_neutral(self):
-        from app.api.judiciary.models import LearnerEtherProfile, Sephira
+        from app.api.judiciary.models import LearnerEtherProfile
         from app.api.judiciary.profiler import EtherProfiler
         profiler = EtherProfiler()
         profile = LearnerEtherProfile(

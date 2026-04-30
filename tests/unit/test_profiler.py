@@ -3,8 +3,7 @@ Unit tests for the Ether Profiler (Pillar 5).
 Tests archetype classification, signal extraction, and cache behaviour.
 """
 import pytest
-from unittest.mock import AsyncMock, patch
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from app.api.constitutional_schema.types import EtherArchetype, EtherToneParams
 from app.api.profiler import EtherProfiler, get_profiler, _ARCHETYPE_DEFAULTS, _DEFAULT_ARCHETYPE

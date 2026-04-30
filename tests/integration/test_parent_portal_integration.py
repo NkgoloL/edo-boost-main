@@ -13,12 +13,9 @@ from unittest.mock import MagicMock, AsyncMock
 from app.api.services.parent_portal_service import ParentPortalService
 from app.api.models.db_models import (
     ConsentAudit,
-    DiagnosticSession,
     Learner,
     LearnerIdentity,
-    SessionEvent,
     StudyPlan,
-    SubjectMastery,
 )
 
 

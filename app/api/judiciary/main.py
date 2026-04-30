@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import Counter, Histogram, make_asgi_app
 
-from .models import JudiciaryStamp, StampVerdict
+from .models import JudiciaryStamp
 from .service import JudiciaryService
 
 logger = logging.getLogger(__name__)

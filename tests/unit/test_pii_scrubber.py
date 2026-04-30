@@ -1,5 +1,5 @@
 """Unit tests for the Inference Gateway PII scrubber."""
-import pytest
+
 from app.api.services.inference_gateway import scrub_pii, scrub_dict
 
 

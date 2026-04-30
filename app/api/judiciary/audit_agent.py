@@ -13,7 +13,7 @@ import logging
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from typing import Dict
 
 from prometheus_client import Counter, Gauge
 from sqlalchemy import text
@@ -22,10 +22,7 @@ from sqlalchemy.orm import sessionmaker
 
 from .streams import (
     ALL_STREAMS,
-    CONSUMER_GROUP,
-    STREAM_ACTIONS,
     STREAM_CONSENT,
-    STREAM_DLQ,
     ack_message,
     claim_stale,
     get_consumer_lag,

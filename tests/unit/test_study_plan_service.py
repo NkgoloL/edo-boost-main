@@ -6,11 +6,11 @@ and schedule distribution.
 """
 import pytest
 from uuid import uuid4
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
 
 from app.api.services.study_plan_service import StudyPlanService
-from app.api.models.db_models import Learner, SubjectMastery, StudyPlan
+from app.api.models.db_models import Learner
 
 
 class TestStudyPlanGeneration:

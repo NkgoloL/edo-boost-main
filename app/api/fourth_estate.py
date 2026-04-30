@@ -1,7 +1,6 @@
-"""EduBoost SA — Fourth Estate (Pillar 4): audit trail and transparency."""
-
 from __future__ import annotations
 
+import structlog
 from collections import deque
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -14,12 +13,9 @@ from app.api.constitutional_schema.types import (
     StampStatus,
 )
 
-_fourth_estate: Optional["FourthEstate"] = None
-
-
-import structlog
-
 logger = structlog.get_logger(__name__)
+
+_fourth_estate: Optional["FourthEstate"] = None
 
 
 class FourthEstate:

@@ -3,7 +3,7 @@ Unit tests for the Fourth Estate (Pillar 4).
 Tests audit event publishing, violation flagging, and stats.
 """
 import pytest
-from unittest.mock import patch, AsyncMock
+
 
 from app.api.constitutional_schema.types import (
     ExecutiveAction, ActionType, JudiciaryStamp, StampStatus,

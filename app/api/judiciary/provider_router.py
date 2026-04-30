@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional
 
@@ -91,7 +90,6 @@ async def _call_local(prompt: str, **kwargs) -> str:
     Model should be loaded at startup and kept warm.
     """
     try:
-        from transformers import pipeline  # type: ignore
 
         generator = _get_local_pipeline()
         result = generator(prompt, max_new_tokens=512, do_sample=False)

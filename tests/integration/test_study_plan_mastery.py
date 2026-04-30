@@ -1,6 +1,5 @@
 import pytest
 import uuid
-from sqlalchemy import text
 from app.api.core.database import AsyncSessionFactory
 from app.api.services.study_plan_service import StudyPlanService
 from app.api.models.db_models import Learner, SubjectMastery

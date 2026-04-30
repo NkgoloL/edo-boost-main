@@ -6,7 +6,7 @@ and progression mechanics.
 """
 import pytest
 from uuid import uuid4
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.api.services.gamification_service import GamificationService

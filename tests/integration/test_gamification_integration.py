@@ -11,10 +11,10 @@ import pytest
 import pytest_asyncio
 from uuid import uuid4
 from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 from app.api.services.gamification_service import GamificationService, XP_CONFIG, GRADE_BAND_CONFIG
-from app.api.models.db_models import Learner, LearnerBadge, Badge
+from app.api.models.db_models import Learner
 
 
 class TestGamificationIntegration:
@@ -106,7 +106,7 @@ class TestGamificationIntegration:
         )
 
         # Verify: 95 + 35 + streak_bonus = crosses 100 threshold
-        assert result["leveled_up"] == True
+        assert result["leveled_up"]
         assert result["new_level"] == 2
 
     @pytest.mark.asyncio
@@ -164,7 +164,7 @@ class TestGamificationIntegration:
 
         # Verify: streak continues
         assert result["streak_days"] == 6
-        assert result["streak_broken"] == False
+        assert not result["streak_broken"]
 
     @pytest.mark.asyncio
     async def test_update_streak_breaks_streak(self, mock_db_session, mock_learner_grade_r3):
@@ -187,7 +187,7 @@ class TestGamificationIntegration:
 
         # Verify: streak resets
         assert result["streak_days"] == 1
-        assert result["streak_broken"] == True
+        assert result["streak_broken"]
 
     @pytest.mark.asyncio
     async def test_update_streak_same_day_no_change(self, mock_db_session, mock_learner_grade_r3):
@@ -206,7 +206,7 @@ class TestGamificationIntegration:
 
         # Verify: streak unchanged
         assert result["streak_days"] == 5
-        assert result["streak_broken"] == False
+        assert not result["streak_broken"]
 
     # =====================================================================
     # Test: Grade Band Behavior
@@ -215,7 +215,6 @@ class TestGamificationIntegration:
     @pytest.mark.asyncio
     async def test_grade_r3_max_daily_xp(self, mock_db_session, mock_learner_grade_r3):
         """Test that Grade R-3 has correct max daily XP."""
-        service = GamificationService(mock_db_session)
         
         # Verify config
         assert GRADE_BAND_CONFIG["R-3"]["max_daily_xp"] == 200
@@ -225,7 +224,6 @@ class TestGamificationIntegration:
     @pytest.mark.asyncio
     async def test_grade_47_max_daily_xp(self, mock_db_session, mock_learner_grade_47):
         """Test that Grade 4-7 has correct max daily XP and discovery badges."""
-        service = GamificationService(mock_db_session)
         
         # Verify config
         assert GRADE_BAND_CONFIG["4-7"]["max_daily_xp"] == 250

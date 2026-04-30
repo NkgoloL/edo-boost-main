@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timedelta
 from app.api.core.database import AsyncSessionFactory
 from app.api.services.gamification_service import GamificationService
-from app.api.models.db_models import Learner, SubjectMastery, Badge
+from app.api.models.db_models import Learner, SubjectMastery
 
 @pytest.mark.asyncio
 async def test_streak_grace_period():
@@ -48,7 +48,6 @@ async def test_mastery_badge_award():
         session.add(mastery)
         
         # Ensure Math badge exists
-        badge = await session.get(Badge, uuid.uuid4()) # Dummy ID
         # (Using the seeded badges from earlier if they exist, or create one)
         # For the test, I'll just check if _check_and_award_badges picks it up
         

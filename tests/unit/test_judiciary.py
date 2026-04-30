@@ -3,10 +3,10 @@ Unit tests for the Judiciary (Pillar 3).
 Tests constitutional review, PII scanning, and stamp issuance.
 """
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+
 
 from app.api.constitutional_schema.types import (
-    ExecutiveAction, ActionType, JudiciaryStamp, StampStatus,
+    ExecutiveAction, ActionType, StampStatus,
 )
 from app.api.judiciary import Judiciary, get_judiciary
 
@@ -231,7 +231,6 @@ class TestStampProperties:
 
 class TestJudiciarySingleton:
     def test_singleton_returns_same_instance(self):
-        import importlib
         import app.api.judiciary as jmod
         jmod._judiciary = None  # Reset singleton
         j1 = get_judiciary(use_llm_review=False)

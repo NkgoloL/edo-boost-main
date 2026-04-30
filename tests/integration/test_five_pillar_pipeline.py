@@ -5,13 +5,12 @@ Tests the full Orchestrator flow: Legislature → Executive → Judiciary → Fo
 These tests mock the LLM calls but exercise the real constitutional machinery.
 """
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import patch, AsyncMock
+import json
 from httpx import ASGITransport, AsyncClient
 
 from app.api.main import app
-from app.api.constitutional_schema.types import (
-    ActionType, StampStatus, EtherArchetype,
-)
+
 
 # ── Shared mock lesson JSON ───────────────────────────────────────────────────
 MOCK_LESSON = {
@@ -44,7 +43,6 @@ MOCK_LESSON = {
     "badge": "Fraction Fan",
 }
 
-import json
 MOCK_LESSON_STR = json.dumps(MOCK_LESSON)
 
 

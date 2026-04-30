@@ -10,7 +10,7 @@ Integration tests covering:
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
-from datetime import datetime, timedelta
+
 
 from app.api.tasks.plan_tasks import (
     refresh_study_plan_task,
@@ -60,7 +60,7 @@ class TestCeleryStudyPlanTasks:
         with patch(
             "app.api.tasks.plan_tasks._refresh_study_plan",
             new_callable=AsyncMock,
-        ) as mock_refresh:
+        ) as _:
             # Execute the Celery task directly (not through Celery runner)
             # This tests the task logic without the event loop conflict
             from app.api.tasks.plan_tasks import refresh_study_plan_task

@@ -1,7 +1,4 @@
-import math
 import random
-import pytest
-import numpy as np
 from app.api.ml.irt_engine import (
     Item,
     Response,

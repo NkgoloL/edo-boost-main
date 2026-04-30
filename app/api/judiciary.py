@@ -5,7 +5,6 @@ from __future__ import annotations
 import time
 from typing import Optional
 import hashlib
-import asyncio
 from time import monotonic
 
 from app.api.services.inference_gateway import call_llm

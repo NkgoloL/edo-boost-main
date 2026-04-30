@@ -10,13 +10,12 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import AsyncGenerator, List, Optional
+from typing import List, Optional
 
-import httpx
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import ConstitutionalRule, ConstitutionalRuleORM, RuleSetSignatureORM, ScopeModel
+from .models import ConstitutionalRule, ConstitutionalRuleORM, ScopeModel
 
 logger = logging.getLogger(__name__)
 
