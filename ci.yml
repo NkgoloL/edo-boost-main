@@ -1,0 +1,284 @@
+name: EduBoost CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+env:
+  PYTHON_VERSION: "3.11"
+  COVERAGE_THRESHOLD: "80"
+
+jobs:
+  # -------------------------------------------------------------------------
+  # LINT & TYPE CHECK
+  # -------------------------------------------------------------------------
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dev dependencies
+        run: pip install ruff mypy types-redis types-boto3 pydantic
+
+      - name: Run ruff
+        run: ruff check app/ tests/ --output-format=github
+
+      - name: Run mypy
+        run: mypy app/ --ignore-missing-imports --strict-optional
+
+  # -------------------------------------------------------------------------
+  # UNIT TESTS
+  # -------------------------------------------------------------------------
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-asyncio pytest-cov
+
+      - name: Run unit tests
+        run: |
+          pytest tests/unit/ \
+            --cov=app \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=${{ env.COVERAGE_THRESHOLD }} \
+            -v --tb=short
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.xml
+          fail_ci_if_error: false
+
+  # -------------------------------------------------------------------------
+  # INTEGRATION TESTS (with service containers)
+  # -------------------------------------------------------------------------
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: eduboost
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: eduboost_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://eduboost:testpassword@localhost:5432/eduboost_test
+      JWT_SECRET: test-jwt-secret
+      ENCRYPTION_KEY: test-encryption-key-32-chars-xxxx
+      ENCRYPTION_SALT: test-encryption-salt
+      AUDIT_DATABASE_URL: postgresql+asyncpg://eduboost:testpassword@localhost:5432/eduboost_test
+      REDIS_URL: redis://localhost:6379/0
+      ENCRYPTION_KEY: test-encryption-key-32-chars-xxxx
+      JUDICIARY_API_KEY: test-judiciary-key
+      JUDICIARY_SERVICE_URL: http://localhost:8001
+      APP_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-asyncio
+
+      - name: Run Alembic migrations
+        run: alembic upgrade head
+
+      - name: Run integration tests
+        run: |
+          pytest tests/integration/ -v --tb=short \
+            --timeout=60
+
+  frontend:
+    name: Frontend Tests & Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app/frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci --include=optional --legacy-peer-deps
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Build frontend
+        run: npm run build
+
+  # -------------------------------------------------------------------------
+  # SCHEMA DRIFT GATE (alembic check)
+  # -------------------------------------------------------------------------
+  schema-drift:
+    name: Schema Drift Check
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: eduboost
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: eduboost_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://eduboost:testpassword@localhost:5432/eduboost_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt alembic
+
+      - name: Bootstrap schema
+        run: alembic upgrade head
+
+      - name: Assert no pending migrations (drift check)
+        run: alembic check
+
+  # -------------------------------------------------------------------------
+  # POPIA COMPLIANCE TESTS
+  # -------------------------------------------------------------------------
+  popia-tests:
+    name: POPIA Compliance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest pytest-asyncio
+
+      - name: Run POPIA compliance tests
+        run: |
+          pytest tests/popia/ -v --tb=short -k "pii or consent or erasure"
+
+  # -------------------------------------------------------------------------
+  # DOCKER IMAGE SCANNING
+  # -------------------------------------------------------------------------
+  image-scan:
+    name: Docker Image Security Scan
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'release'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build API image
+        run: docker build -f docker/Dockerfile.api -t eduboost-api:scan .
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "eduboost-api:scan"
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "CRITICAL,HIGH"
+          exit-code: "1"
+
+      - name: Upload scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-results.sarif"
+
+  # -------------------------------------------------------------------------
+  # PRODUCTION PROMOTION GATE (tag-triggered)
+  # -------------------------------------------------------------------------
+  production-promote:
+    name: Production Promotion Gate
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: [lint, unit-tests, integration-tests, frontend, schema-drift, popia-tests, image-scan]
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run smoke tests against staging
+        env:
+          STAGING_URL: ${{ secrets.STAGING_URL }}
+          STAGING_API_KEY: ${{ secrets.STAGING_API_KEY }}
+        run: |
+          pytest tests/smoke/ -v --tb=short \
+            --base-url="$STAGING_URL" \
+            --api-key="$STAGING_API_KEY" \
+            --timeout=30
+
+      - name: Deploy to production (k8s)
+        env:
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_DATA }}
+        run: |
+          echo "$KUBECONFIG_DATA" | base64 -d > /tmp/kubeconfig
+          export KUBECONFIG=/tmp/kubeconfig
+          kubectl set image deployment/eduboost-api \
+            api=ghcr.io/nkgoloL/eduboost-api:${{ github.ref_name }}
+          kubectl rollout status deployment/eduboost-api --timeout=5m
+
+      - name: Verify production health
+        env:
+          PROD_URL: ${{ secrets.PROD_URL }}
+        run: |
+          curl -f "$PROD_URL/health" || exit 1
+          curl -f "$PROD_URL/judiciary/health" || exit 1

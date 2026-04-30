@@ -56,7 +56,7 @@ eduboost-sa/
 ├── prometheus.yml                    # Prometheus scrape config
 ├── requirements.txt                  # Python dependencies
 ├── pytest.ini                        # Test configuration
-├── Production_Grade_Roadmap.md       # Production hardening roadmap
+├── audits/roadmaps/Production_Grade_Roadmap.md # Production hardening roadmap
 └── README.md
 ```
 
@@ -112,7 +112,7 @@ Services will be available at:
 
 | Service | URL |
 |---|---|
-| Frontend | http://localhost:3000 |
+| Frontend | http://localhost:3050 |
 | API | http://localhost:8000 |
 | API Docs | http://localhost:8000/docs |
 | Grafana | http://localhost:3001 |
@@ -179,7 +179,8 @@ pytest --cov=app --cov-report=html
 
 ## 🗃️ Database Migrations
 
-Schema changes are moving to an Alembic-driven workflow.
+Schema changes are Alembic-driven. Docker Compose runs `alembic upgrade head`
+through the `migrate` service before the API and workers start.
 
 ```bash
 alembic upgrade head

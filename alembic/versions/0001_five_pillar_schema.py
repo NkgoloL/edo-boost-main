@@ -4,7 +4,7 @@ Creates all tables required by the architectural implementation.
 Enforces:
   - constitutional_rules: Postgres trigger blocks UPDATE/DELETE
   - audit_log: append-only trigger
-  - consent_log: RLS policy via learner_sessions example
+  - consent_audit: RLS policy via learner_sessions example
   - All FK relationships and composite indexes for portal query performance
 """
 from alembic import op
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 revision = "0001_five_pillar_schema"
-down_revision = None
+down_revision = "0003_add_items_correct"
 branch_labels = None
 depends_on = None
 
@@ -88,17 +88,6 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
     )
     op.create_index("ix_lesson_results_learner", "lesson_results", ["learner_pseudonym"])
-
-    op.create_table(
-        "study_plans",
-        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
-        sa.Column("action_id", sa.String(36), nullable=False, unique=True),
-        sa.Column("stamp_id", sa.String(36), nullable=False),
-        sa.Column("learner_pseudonym", sa.String(128), nullable=False),
-        sa.Column("grade", sa.Integer, nullable=False),
-        sa.Column("plan_content", sa.Text, nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-    )
 
     # ------------------------------------------------------------------ #
     # PILLAR 3 — JUDICIARY                                                 #
@@ -190,20 +179,6 @@ def upgrade() -> None:
     # ------------------------------------------------------------------ #
     # CONSENT                                                              #
     # ------------------------------------------------------------------ #
-    op.create_table(
-        "consent_log",
-        sa.Column("id", sa.Integer, primary_key=True, autoincrement=True),
-        sa.Column("consent_id", sa.String(36), nullable=False, unique=True),
-        sa.Column("learner_pseudonym", sa.String(128), nullable=False),
-        sa.Column("consent_status", sa.String(16), nullable=False),
-        sa.Column("granted_by", sa.String(256), nullable=True),
-        sa.Column("guardian_contact", sa.String(256), nullable=True),
-        sa.Column("granted_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("revoked_by", sa.String(256), nullable=True),
-    )
-    op.create_index("ix_consent_log_learner", "consent_log", ["learner_pseudonym"])
-
     # Row-Level Security policy for learner_sessions (consent gate)
     op.execute("""
         CREATE TABLE IF NOT EXISTS learner_sessions (
@@ -218,10 +193,15 @@ def upgrade() -> None:
         CREATE POLICY consent_gate ON learner_sessions
           USING (
             EXISTS (
-              SELECT 1 FROM consent_log
-              WHERE consent_log.learner_pseudonym = learner_sessions.learner_pseudonym
-                AND consent_log.consent_status = 'ACTIVE'
-                AND consent_log.revoked_at IS NULL
+              SELECT 1 FROM consent_audit
+              WHERE consent_audit.pseudonym_id::text = learner_sessions.learner_pseudonym
+                AND consent_audit.event_type = 'consent_granted'
+                AND NOT EXISTS (
+                  SELECT 1 FROM consent_audit revoked
+                  WHERE revoked.pseudonym_id = consent_audit.pseudonym_id
+                    AND revoked.event_type = 'consent_revoked'
+                    AND revoked.occurred_at > consent_audit.occurred_at
+                )
             )
           );
     """)
@@ -309,10 +289,10 @@ def downgrade() -> None:
     for table in [
         "data_retention_policy", "session_states",
         "irt_learner_estimates", "irt_responses", "irt_item_parameters",
-        "ether_profiles", "consent_log", "learner_sessions",
+        "ether_profiles", "learner_sessions",
         "audit_log", "constitutional_violations",
         "judiciary_stamp_cache", "judiciary_stamps",
-        "study_plans", "lesson_results",
+        "lesson_results",
         "legislature_source_hashes", "rule_set_signatures", "constitutional_rules",
     ]:
         op.drop_table(table)

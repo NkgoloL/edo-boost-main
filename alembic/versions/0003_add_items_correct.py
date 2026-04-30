@@ -18,9 +18,7 @@ def upgrade() -> None:
         "diagnostic_sessions",
         sa.Column("items_correct", sa.Integer, nullable=True, server_default="0"),
     )
-    op.create_index("ix_diagnostic_sessions_learner", "diagnostic_sessions", ["learner_id"]) 
 
 
 def downgrade() -> None:
-    op.drop_index("ix_diagnostic_sessions_learner", table_name="diagnostic_sessions")
     op.drop_column("diagnostic_sessions", "items_correct")

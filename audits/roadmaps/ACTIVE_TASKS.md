@@ -29,3 +29,29 @@ Each item should be closed only when implemented, verified (tests or runtime val
   - [x] Commit in small batches after each milestone (docs → backend green → generator → persistence floor)
   - [x] Implement frontend gamification and state management refactor
   - [x] Sync progress to Redmine
+
+### Scope: EduBoost SA Issues and Solutions remediation
+
+- [x] **Repository and environment hygiene**
+  - [x] Removed tracked Celery Beat runtime artifact from the working tree and ignored future schedule files
+  - [x] Deduplicated `requirements.txt`, added `aiosqlite`, and moved heavy local ML packages to `requirements-ml.txt`
+
+- [x] **Database lifecycle**
+  - [x] Reconciled Alembic into a single revision chain
+  - [x] Removed duplicate `study_plans` creation and duplicate diagnostic-session index creation
+  - [x] Aligned ORM and migrations for `items_correct`, parent verification tokens, reports, and dummy data points
+  - [x] Updated Docker Compose to run Alembic migrations instead of mounting SQL schema init scripts
+
+- [x] **Backend API contracts and POPIA controls**
+  - [x] Fixed provider-router imports, fallback stream imports, and `system_prompt` handling
+  - [x] Implemented missing `StudyPlanService` and `ParentPortalService` router-facing methods
+  - [x] Moved parent report persistence to the canonical `reports` table
+  - [x] Switched worker consent checks to the canonical `consent_audit` table
+  - [x] Enforced guardian token ownership on parent/consent/deletion/access routes
+  - [x] Added token `jti` revocation checks and encrypted guardian full names at registration
+
+- [x] **Frontend, CI, and docs alignment**
+  - [x] Updated frontend API client routes for study plans and parent reports
+  - [x] Registered the service worker and aligned offline queue/cache routes with backend APIs
+  - [x] Added frontend CI, POPIA test path, and smoke test path
+  - [x] Updated README, development, architecture, and POPIA docs for ports, migrations, routes, and encryption

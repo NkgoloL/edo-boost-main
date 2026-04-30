@@ -31,8 +31,8 @@ This document tracks the full set of 236 actionable items required to move EduBo
 
 ## 2. Backend Quality
 
-16. [ ] Remove insecure secret defaults from configuration.
-17. [ ] Make production startup fail when required secrets are missing.
+16. [x] Remove insecure secret defaults from configuration.
+17. [x] Make production startup fail when required secrets are missing.
 18. [ ] Create separate config profiles for local, test, staging, and production.
 19. [ ] Audit every route for missing request and response schemas.
 20. [ ] Add strict Pydantic models to every route.
@@ -42,7 +42,7 @@ This document tracks the full set of 236 actionable items required to move EduBo
 24. [ ] Remove runtime table creation from application startup.
 25. [x] Use Alembic as the only database schema migration path.
   - Created `0002_add_missing_tables.py` with all missing tables
-26. [ ] Add migration verification to CI.
+26. [x] Add migration verification to CI.
 27. [ ] Create rollback instructions for failed migrations.
 28. [ ] Replace blocking SDK usage in async request paths.
 29. [ ] Review all external I/O for correct timeout behavior.
@@ -53,10 +53,10 @@ This document tracks the full set of 236 actionable items required to move EduBo
 34. [ ] Persist generated study plans where product history is required.
 35. [ ] Persist parent reports where product history is required.
 36. [ ] Define cache versus database ownership for every generated artifact.
-37. [ ] Validate LLM JSON against Pydantic models before downstream use.
+37. [~] Validate LLM JSON against Pydantic models before downstream use.
 38. [ ] Add business-rule validation for grade, subject, language, and mastery values.
-39. [ ] Deduplicate and reorganize dependencies in `requirements.txt`.
-40. [ ] Split runtime dependencies from dev/test dependencies.
+39. [x] Deduplicate and reorganize dependencies in `requirements.txt`.
+40. [~] Split runtime dependencies from dev/test dependencies.
 41. [ ] Add structured logging conventions across backend modules.
 42. [ ] Add correlation/request IDs to logs.
 43. [ ] Introduce rate limiting on high-cost and abuse-prone endpoints.
@@ -99,10 +99,10 @@ This document tracks the full set of 236 actionable items required to move EduBo
 
 75. [ ] Move all privacy-sensitive enforcement from UI messaging into backend logic.
 76. [ ] Verify guardian identity before issuing guardian JWTs.
-77. [ ] Verify guardian-to-learner relationship before granting access.
-78. [ ] Add role-based authorization rules.
-79. [ ] Add context-aware authorization for sensitive endpoints.
-80. [ ] Define token expiry, rotation, and revocation behavior.
+77. [x] Verify guardian-to-learner relationship before granting access.
+78. [x] Add role-based authorization rules.
+79. [x] Add context-aware authorization for sensitive endpoints.
+80. [~] Define token expiry, rotation, and revocation behavior.
 81. [ ] Centralize PII detection patterns in one module.
 82. [ ] Reconcile inconsistencies in current scrubber rules.
 83. [ ] Add tests to ensure learner IDs never reach AI providers.
@@ -116,8 +116,8 @@ This document tracks the full set of 236 actionable items required to move EduBo
 91. [ ] Add secure response headers where applicable.
 92. [ ] Review CSRF exposure for auth/session flows.
 93. [ ] Add monitoring for authentication failures and suspicious access.
-94. [ ] Define and implement right-to-erasure across database, cache, logs, and analytics.
-95. [ ] Track deletion requests through a verifiable lifecycle.
+94. [~] Define and implement right-to-erasure across database, cache, logs, and analytics.
+95. [x] Track deletion requests through a verifiable lifecycle.
 96. [ ] Define backup retention interactions with deletion policy.
 97. [ ] Add threat modeling for learner, guardian, AI-provider, and admin attack surfaces.
 98. [ ] Run dependency vulnerability scanning.
@@ -137,11 +137,11 @@ This document tracks the full set of 236 actionable items required to move EduBo
 109. [ ] Add CI jobs for linting.
 110. [ ] Add CI jobs for type checks where applicable.
 111. [ ] Add CI jobs for backend unit tests.
-112. [ ] Add CI jobs for frontend tests.
+112. [x] Add CI jobs for frontend tests.
 113. [ ] Add CI jobs for integration tests.
-114. [ ] Add CI jobs for build verification.
-115. [ ] Add CI jobs for migration checks.
-116. [ ] Add CI jobs for security scans.
+114. [x] Add CI jobs for build verification.
+115. [x] Add CI jobs for migration checks.
+116. [x] Add CI jobs for security scans.
 117. [ ] Add CI jobs for container builds.
 118. [ ] Add release automation.
 119. [ ] Add rollback automation or a documented rollback playbook.
@@ -224,9 +224,9 @@ This document tracks the full set of 236 actionable items required to move EduBo
 187. [ ] Separate UI translation support from lesson-language support.
 188. [ ] Create a rollout plan for additional official languages.
 189. [ ] Validate curriculum terminology quality per language.
-190. [ ] Add offline-friendly caching for recent lessons.
-191. [ ] Add offline-friendly caching for current study plans.
-192. [ ] Define sync behavior after reconnect.
+190. [x] Add offline-friendly caching for recent lessons.
+191. [x] Add offline-friendly caching for current study plans.
+192. [x] Define sync behavior after reconnect.
 193. [ ] Optimize large payload sizes for low-bandwidth users.
 194. [ ] Add voice support planning for early-grade learners if this remains a product goal.
 195. [ ] Validate age-appropriate reading complexity by grade band.
@@ -240,7 +240,7 @@ This document tracks the full set of 236 actionable items required to move EduBo
 
 ## 9. Documentation and Team Enablement
 
-203. [ ] Update `README.md` to reflect the actual repo state.
+203. [x] Update `README.md` to reflect the actual repo state.
 204. [ ] Add `CONTRIBUTING.md`.
 205. [ ] Add engineering setup documentation for backend and frontend.
 206. [ ] Add architecture documentation with diagrams.
@@ -271,12 +271,12 @@ This document tracks the full set of 236 actionable items required to move EduBo
 ## 11. Immediate High-Priority Tasks
 
 227. [ ] Remove all browser-direct AI provider calls.
-228. [ ] Fix guardian authentication and authorization.
+228. [x] Fix guardian authentication and authorization.
 229. [ ] Remove runtime DB auto-create from production path.
 230. [ ] Add strict schemas and validation to all critical endpoints.
 231. [ ] Route all sensitive workflows through orchestration and auditing.
 232. [ ] Persist generated lessons with durable IDs.
-233. [ ] Add proper migration discipline.
-234. [ ] Update the README to stop overstating current production readiness.
+233. [x] Add proper migration discipline.
+234. [x] Update the README to stop overstating current production readiness.
 235. [ ] Break up `EduBoostApp.jsx`.
-236. [ ] Add CI quality gates for tests, builds, and security scans.
+236. [x] Add CI quality gates for tests, builds, and security scans.

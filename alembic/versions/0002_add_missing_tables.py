@@ -120,9 +120,10 @@ def upgrade() -> None:
         sa.Column("report_type", sa.String(30), nullable=False),  # progress, diagnostic, weekly, monthly, parent
         sa.Column("title", sa.String(200), nullable=False),
         sa.Column("content", postgresql.JSON, nullable=False),
-        sa.Column("generated_by", sa.String(20), default="SYSTEM"),
-        sa.Column("period_start", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("period_end", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("summary", sa.Text),
+        sa.Column("generated_by", sa.String(50), default="SYSTEM"),
+        sa.Column("is_shared", sa.Boolean, default=False),
+        sa.Column("shared_with_guardian", sa.Boolean, default=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index("ix_reports_learner", "reports", ["learner_id"])
@@ -131,12 +132,13 @@ def upgrade() -> None:
     # Dummy Data Points (Test data for development)
     op.create_table(
         "dummy_data_points",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("data_type", sa.String(50), nullable=False),  # learner, session, mastery, etc.
+        sa.Column("data_id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("kind", sa.String(50), nullable=False),  # learner, session, mastery, etc.
         sa.Column("payload", postgresql.JSON, nullable=False),
+        sa.Column("is_persistent", sa.Boolean, default=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
-    op.create_index("ix_dummy_data_points_type", "dummy_data_points", ["data_type"])
+    op.create_index("ix_dummy_data_points_kind_created", "dummy_data_points", ["kind", "created_at"])
 
 
 def downgrade() -> None:
